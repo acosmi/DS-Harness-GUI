@@ -70,6 +70,7 @@ module.exports = {
     category: 'public.app-category.developer-tools',
     icon: productIcon,
     identity: desktopMacIdentity(identity.macSigning.identitySha1, releaseMode),
+    sign: trustedSigning ? path.resolve(__dirname, 'scripts/sign-mac.cjs') : undefined,
     notarize: trustedSigning,
     target: ['dmg', 'zip'],
     hardenedRuntime: true,
