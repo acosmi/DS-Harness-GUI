@@ -195,8 +195,12 @@ jobs:
           esac
           addon_dir="$(realpath packages/subprocess/subprocess-local/node_modules/node-pty)"
           addon="$addon_dir/build/Release/pty.node"
+          # pnpm can retain node-pty's generated Makefile without the imported
+          # node-addon-api target fragments. Configure the final virtual-store
+          # paths directly before the manylinux compiler consumes them.
+          pnpm exec node-gyp configure --directory="$addon_dir"
           [ -f "$addon_dir/build/Makefile" ] || {
-            echo "::error::node-pty install did not generate $addon_dir/build/Makefile"
+            echo "::error::node-gyp configure did not generate $addon_dir/build/Makefile"
             exit 1
           }
           docker run --rm \

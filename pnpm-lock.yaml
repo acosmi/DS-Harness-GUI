@@ -93,6 +93,9 @@ importers:
       micromark-extension-gfm:
         specifier: ^3.0.0
         version: 3.0.0
+      node-gyp:
+        specifier: ^12.4.0
+        version: 12.4.0
       oxlint:
         specifier: 1.76.0
         version: 1.76.0(oxlint-tsgolint@7.0.2001)
