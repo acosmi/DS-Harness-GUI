@@ -76,7 +76,8 @@
   color: var(--dsw-alias-label-primary);
 }
 
-.brandHitbox > * {
+.brandHitbox > :not([data-slot]),
+.brandHitbox > [data-slot] > * {
   flex: none;
   transform-origin: 50% 60%;
 }
@@ -96,7 +97,8 @@
 }
 
 @media (hover: hover) and (prefers-reduced-motion: no-preference) {
-  .brandHitbox:hover > * {
+  .brandHitbox:hover > :not([data-slot]),
+  .brandHitbox:hover > [data-slot] > * {
     animation: hero-brand-float var(--ds-transition-duration-slow) var(--ds-ease-in-out);
   }
 }
