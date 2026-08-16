@@ -25,8 +25,7 @@ interface RuntimeClosureModule {
     target: string,
   ) => { entries: number; packages: number }
   assertFilesystemRuntimeClosure: (staging: string) => number
-  ignoredBuildsFromPnpmOutput: (output: string) => unknown[]
-  assertReviewedIgnoredBuilds: (ignoredBuilds: unknown, expected: string) => void
+  assertNoDeployLifecycleScripts: (output: string) => void
   assertSafeStagingPath: (repositoryRoot: string, staging: string) => void
   materializeStagedLinks: (staging: string) => Promise<void>
   normalizeStagedManifestDependencies: (staging: string) => number
@@ -137,9 +136,8 @@ describe('desktop package runtime closure', () => {
     expect(existsSync(state)).toBe(false)
   })
 
-  it('permits only the reviewed workspace postinstall and prepares the target helper', () => {
+  it('rejects lifecycle execution and prepares the target helper without scripts', () => {
     const root = fixtureRoot()
-    const expected = '@deepseek-ai/dsh-subprocess-local@file:///workspace/packages/subprocess/subprocess-local'
     const helper = join(root, 'node_modules/node-pty/prebuilds/darwin-arm64/spawn-helper')
     const foreignPrebuild = join(root, 'node_modules/node-pty/prebuilds/win32-x64/pty.node')
     mkdirSync(dirname(helper), { recursive: true })
@@ -147,26 +145,21 @@ describe('desktop package runtime closure', () => {
     mkdirSync(dirname(foreignPrebuild), { recursive: true })
     writeFileSync(foreignPrebuild, 'foreign')
 
-    expect(() => closure.assertReviewedIgnoredBuilds([expected], expected)).not.toThrow()
+    expect(() => closure.assertNoDeployLifecycleScripts(JSON.stringify({
+      name: 'pnpm:ignored-scripts',
+      packageNames: ['koffi@3.1.1'],
+    }))).not.toThrow()
     closure.prepareTargetRuntime(root, 'darwin-arm64')
     expect(statSync(helper).mode & 0o111).toBe(0o111)
     expect(existsSync(foreignPrebuild)).toBe(false)
 
-    expect(() => closure.assertReviewedIgnoredBuilds(['unreviewed@1.0.0'], expected))
-      .toThrow(/unreviewed ignored builds/)
-  })
-
-  it('audits the union of every pnpm ignored-script event', () => {
-    const expected = '@deepseek-ai/dsh-subprocess-local@file:///workspace/packages/subprocess/subprocess-local'
-    const output = [
-      JSON.stringify({ name: 'pnpm:ignored-scripts', packageNames: [expected] }),
-      JSON.stringify({ name: 'pnpm:ignored-scripts', packageNames: ['unreviewed@1.0.0'] }),
-    ].join('\n')
-    const ignored = closure.ignoredBuildsFromPnpmOutput(output)
-
-    expect(ignored).toEqual([expected, 'unreviewed@1.0.0'])
-    expect(() => closure.assertReviewedIgnoredBuilds(ignored, expected)).toThrow(/unreviewed ignored builds/)
-    expect(() => closure.ignoredBuildsFromPnpmOutput('{}')).toThrow(/did not report/)
+    expect(() => closure.assertNoDeployLifecycleScripts(JSON.stringify({
+      name: 'pnpm:lifecycle',
+      depPath: '/staging/node_modules/koffi',
+      stage: 'install',
+    }))).toThrow(/executed a dependency lifecycle script.*koffi/)
+    expect(() => closure.assertNoDeployLifecycleScripts('{invalid'))
+      .toThrow(/deploy emitted invalid NDJSON/)
   })
 
   it('audits application files, dependency manifests, and target native binaries in ASAR', () => {

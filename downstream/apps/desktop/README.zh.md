@@ -8,7 +8,7 @@
 
 正常 shutdown 会先销毁 renderer 窗口，从而关闭由该窗口持有的原生目录对话框，再要求 utility process 卸载 Harness 树；期间特权桥继续供必需的 vault 清理使用，随后在同一 shutdown deadline 内等待主进程全部 secret、目录与浏览器操作结算。超时仍会使优雅关闭失败并终止 utility process，不会被报告为已经达到静止状态。
 
-打包不会把正在使用的 monorepo 工作区直接交给 electron-builder。每个目标通过 pnpm 的 shared-lockfile deploy 实现进入受控的系统临时目录，再物化 pnpm 与 workspace 链接，并在不修改硬链接源码 manifest 的前提下替换仅供部署使用的依赖说明。结构化部署输出必须只把已审阅的 `dsh-subprocess-local` postinstall 标为 ignored，随后由打包器删除全部非目标 node-pty 预编译目录，并自行准备和验证目标 helper。仓库 pnpm workspace-state 文件的内容、权限与时间戳会被恢复，隔离部署同时保留 workspace `node_modules`，不会迫使后续命令重新安装依赖。Electron 熔丝设置与应用签名前，静态 workspace peer 检查、暂存文件系统递归依赖检查与 utility 导入 smoke，以及最终 ASAR 的依赖、应用文件和目标原生二进制审计必须全部通过；ASAR 审计还会独立拒绝任何漏网的非目标 node-pty 预编译件。
+打包不会把正在使用的 monorepo 工作区直接交给 electron-builder。每个目标通过 pnpm 的 shared-lockfile deploy 实现进入受控的系统临时目录，再物化 pnpm 与 workspace 链接，并在不修改硬链接源码 manifest 的前提下替换仅供部署使用的依赖说明。deploy 会显式禁用全部依赖生命周期脚本，并拒绝结构化输出中的任何生命周期事件，避免跨架构目标按宿主架构运行原生安装器；随后由打包器删除全部非目标 node-pty 预编译目录，并自行准备和验证目标 helper。仓库 pnpm workspace-state 文件的内容、权限与时间戳会被恢复，隔离部署同时保留 workspace `node_modules`，不会迫使后续命令重新安装依赖。Electron 熔丝设置与应用签名前，静态 workspace peer 检查、暂存文件系统递归依赖检查与 utility 导入 smoke，以及最终 ASAR 的依赖、应用文件和目标原生二进制审计必须全部通过；ASAR 审计还会独立拒绝任何漏网的非目标 node-pty 预编译件。
 
 产品自有透明 PNG `assets/branding/dsh-gui-whale-browser-logo-v6.png` 是 macOS、Windows 应用图标与所有 renderer 产品标记的唯一源文件。electron-builder 把它转换成各平台图标格式，renderer 则把它作为 `branding/dsh-gui-whale-browser-logo-v6.png` 与代码和 HTML 一起写入同一份完整性清单。每个隔离打包目标选择单一架构，共享平台配置只声明产物格式。macOS post-pack 审计要求固定 Electron 版本实际携带的四个 helper；可选 EH helper 存在时校验其预留身份，任何未识别 helper 在发行身份账本明确登记前都会使打包失败。
 

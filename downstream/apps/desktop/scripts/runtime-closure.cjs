@@ -205,17 +205,12 @@ function assertSafeStagingPath(temporaryRoot, staging) {
   }
 }
 
-function assertReviewedIgnoredBuilds(ignoredBuilds, expected) {
-  if (!Array.isArray(ignoredBuilds)
-    || ignoredBuilds.length !== 1
-    || ignoredBuilds[0] !== expected) {
-    throw new Error(`Desktop staging contains unreviewed ignored builds: ${JSON.stringify(ignoredBuilds)}`)
-  }
-}
-
-function ignoredBuildsFromPnpmOutput(output) {
-  const ignoredBuilds = new Set()
-  let sawPolicy = false
+/**
+ * Reject pnpm deploy output that reports any dependency lifecycle execution.
+ *
+ * @param {string} output - NDJSON emitted by pnpm's append-only reporter.
+ */
+function assertNoDeployLifecycleScripts(output) {
   for (const line of output.split('\n')) {
     const trimmed = line.trim()
     if (!trimmed.startsWith('{')) continue
@@ -225,14 +220,11 @@ function ignoredBuildsFromPnpmOutput(output) {
     } catch (error) {
       throw new Error(`dsh-gui package: deploy emitted invalid NDJSON: ${trimmed}`, { cause: error })
     }
-    if (event !== null && typeof event === 'object'
-      && event.name === 'pnpm:ignored-scripts' && Array.isArray(event.packageNames)) {
-      sawPolicy = true
-      for (const packageName of event.packageNames) ignoredBuilds.add(packageName)
+    if (event !== null && typeof event === 'object' && event.name === 'pnpm:lifecycle') {
+      const dependency = typeof event.depPath === 'string' ? event.depPath : 'unknown dependency'
+      throw new Error(`Desktop staging executed a dependency lifecycle script: ${dependency}`)
     }
   }
-  if (!sawPolicy) throw new Error('dsh-gui package: deploy did not report ignored-build policy')
-  return [...ignoredBuilds]
 }
 
 function prepareTargetRuntime(staging, target) {
@@ -355,9 +347,8 @@ function assertUtilityImports(staging) {
 
 module.exports = {
   assertAsarRuntimeClosure,
+  assertNoDeployLifecycleScripts,
   assertFilesystemRuntimeClosure,
-  ignoredBuildsFromPnpmOutput,
-  assertReviewedIgnoredBuilds,
   assertSafeStagingPath,
   assertUtilityImports,
   materializeStagedLinks,
