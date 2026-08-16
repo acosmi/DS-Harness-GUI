@@ -70,6 +70,8 @@ describe('CI workflow', () => {
     expect(windowsNative['runs-on']).toContain('self-hosted')
     expect(windowsNative['runs-on']).toContain('dsh-win-ci')
     expect(windowsNative['runs-on']).toContain('dsh-windows-2025-16core')
+    expect(windowsNative['runs-on']).toContain("github.repository != 'deepseek-ai/deepseek-harness'")
+    expect(windowsNative['runs-on']).toContain('windows-2025')
     expect(windowsNative.name).toBe('windows node 24 / native complete')
     expect(windowsNative.if).toBe("github.event_name == 'pull_request'")
     const nativeCommandSteps = (windowsNative.steps as unknown[]).filter((step): step is Record<string, unknown> & { run: string } => (
@@ -99,10 +101,15 @@ describe('CI workflow', () => {
       expect(job['runs-on'], `${jobName} runs-on must use the Linux failover switch`).toContain('DSH_CI_FAILOVER_LINUX')
       expect(job['runs-on'], `${jobName} runs-on must not use the Windows failover switch`).not.toContain('DSH_CI_FAILOVER_WINDOWS')
       expect(job['runs-on']).toContain('vm-backup')
+      expect(job['runs-on']).toContain("github.repository != 'deepseek-ai/deepseek-harness'")
+      expect(job['runs-on']).toContain('ubuntu-latest')
+      expect(job['runs-on']).toContain('dsh-ubuntu-24-04-16core')
     }
     expect(aggregate['runs-on']).toContain('DSH_CI_FAILOVER_LINUX')
     expect(aggregate['runs-on']).not.toContain('DSH_CI_FAILOVER_WINDOWS')
     expect(aggregate['runs-on']).toContain('vm-backup')
+    expect(aggregate['runs-on']).toContain("github.repository == 'deepseek-ai/deepseek-harness'")
+    expect(aggregate['runs-on']).toContain('ubuntu-latest')
   })
 
   it('exempts push from cancellation, so one master merge does not cancel the running drill', () => {

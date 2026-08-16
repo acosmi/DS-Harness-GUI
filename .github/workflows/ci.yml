@@ -45,13 +45,15 @@ jobs:
   # TODO(hosted-serial-ci): Re-enable the three hosted serial reference jobs before release.
   # The self-hosted standby remains active on every master push.
 
-  # Three enterprise jobs isolate coverage, static analysis, and the
-  # build-backed consumer tail. The consumer job owns the only Linux build so
-  # all three jobs enter runner allocation independently.
+  # Three jobs isolate coverage, static analysis, and the build-backed
+  # consumer tail. The canonical repository uses enterprise runners; derived
+  # repositories use standard hosted runners because organization-owned labels
+  # are not portable. The consumer job owns the only Linux build, so all three
+  # jobs enter runner allocation independently.
   #
-  # FAILOVER (Linux): each Linux enterprise job resolves its pool through the
-  # DSH_CI_FAILOVER_LINUX repository variable. Unset (normal), the expressions
-  # pick the hosted enterprise pools below. Setting the variable to
+  # FAILOVER (Linux): in the canonical repository, each Linux job resolves its
+  # pool through the DSH_CI_FAILOVER_LINUX repository variable. Unset (normal),
+  # the expressions pick the hosted enterprise pools below. Setting the variable to
   # 'selfhosted' (repo Settings → Actions → Variables; writer-manageable
   # repository state — not PR-editable, no merge required) retargets all
   # three onto the in-house
@@ -63,13 +65,15 @@ jobs:
   node-24:
     if: github.event_name == 'pull_request'
     runs-on: >-
-      ${{ vars.DSH_CI_FAILOVER_LINUX == 'selfhosted'
+      ${{ github.repository != 'deepseek-ai/deepseek-harness'
+          && 'ubuntu-latest'
+          || vars.DSH_CI_FAILOVER_LINUX == 'selfhosted'
           && github.event.pull_request.user.login != 'dependabot[bot]'
           && fromJSON('["self-hosted", "linux", "x64", "vm-backup"]')
           || 'dsh-ubuntu-24-04-16core' }}
     name: node 24 / static
     env:
-      DSH_GATE_CONCURRENCY: '8'
+      DSH_GATE_CONCURRENCY: ${{ github.repository == 'deepseek-ai/deepseek-harness' && '8' || '2' }}
     steps:
       # Fetch complete history so the archive gate can read the trusted PR base from a reused shallow checkout.
       - uses: actions/checkout@v6
@@ -97,7 +101,7 @@ jobs:
       # compression and upload on the paid latency-critical path. Skipped
       # under failover — see the coverage lane's identical rationale.
       - uses: actions/cache/restore@v4
-        if: vars.DSH_CI_FAILOVER_LINUX != 'selfhosted' || github.event.pull_request.user.login == 'dependabot[bot]'
+        if: github.repository != 'deepseek-ai/deepseek-harness' || vars.DSH_CI_FAILOVER_LINUX != 'selfhosted' || github.event.pull_request.user.login == 'dependabot[bot]'
         with:
           path: ${{ steps.pnpm-store.outputs.path }}
           key: ${{ runner.os }}-node-${{ env.PRIMARY_NODE_VERSION }}-pnpm-${{ hashFiles('pnpm-lock.yaml') }}
@@ -115,7 +119,9 @@ jobs:
   node-24-coverage:
     if: github.event_name == 'pull_request'
     runs-on: >-
-      ${{ vars.DSH_CI_FAILOVER_LINUX == 'selfhosted'
+      ${{ github.repository != 'deepseek-ai/deepseek-harness'
+          && 'ubuntu-latest'
+          || vars.DSH_CI_FAILOVER_LINUX == 'selfhosted'
           && github.event.pull_request.user.login != 'dependabot[bot]'
           && fromJSON('["self-hosted", "linux", "x64", "vm-backup"]')
           || 'dsh-ubuntu-24-04-16core' }}
@@ -125,8 +131,8 @@ jobs:
       # shares one 64-core VM across six always-on runner instances, so each
       # instance may use eight while keeping the worst case at 8 × 6 = 48
       # workers; process-bound suites remain isolated in forks.
-      DSH_COVERAGE_MAX_WORKERS: ${{ vars.DSH_CI_FAILOVER_LINUX == 'selfhosted' && github.event.pull_request.user.login != 'dependabot[bot]' && '8' || '6' }}
-      DSH_GATE_CONCURRENCY: '3'
+      DSH_COVERAGE_MAX_WORKERS: ${{ github.repository != 'deepseek-ai/deepseek-harness' && '2' || vars.DSH_CI_FAILOVER_LINUX == 'selfhosted' && github.event.pull_request.user.login != 'dependabot[bot]' && '8' || '6' }}
+      DSH_GATE_CONCURRENCY: ${{ github.repository == 'deepseek-ai/deepseek-harness' && '3' || '2' }}
     steps:
       - uses: actions/checkout@v6
         with:
@@ -152,7 +158,7 @@ jobs:
       # already serves warm installs, while restoring the hosted archive
       # would spend ~52 s pulling ~180 MB into that populated store.
       - uses: actions/cache/restore@v4
-        if: vars.DSH_CI_FAILOVER_LINUX != 'selfhosted' || github.event.pull_request.user.login == 'dependabot[bot]'
+        if: github.repository != 'deepseek-ai/deepseek-harness' || vars.DSH_CI_FAILOVER_LINUX != 'selfhosted' || github.event.pull_request.user.login == 'dependabot[bot]'
         with:
           path: ${{ steps.pnpm-store.outputs.path }}
           key: ${{ runner.os }}-node-${{ env.PRIMARY_NODE_VERSION }}-pnpm-${{ hashFiles('pnpm-lock.yaml') }}
@@ -178,18 +184,20 @@ jobs:
   node-24-consumers:
     if: github.event_name == 'pull_request'
     runs-on: >-
-      ${{ vars.DSH_CI_FAILOVER_LINUX == 'selfhosted'
+      ${{ github.repository != 'deepseek-ai/deepseek-harness'
+          && 'ubuntu-latest'
+          || vars.DSH_CI_FAILOVER_LINUX == 'selfhosted'
           && github.event.pull_request.user.login != 'dependabot[bot]'
           && fromJSON('["self-hosted", "linux", "x64", "vm-backup"]')
           || 'dsh-ubuntu-24-04-16core' }}
     name: node 24 / snapshots and artifacts
     env:
-      DSH_GATE_CONCURRENCY: '8'
+      DSH_GATE_CONCURRENCY: ${{ github.repository == 'deepseek-ai/deepseek-harness' && '8' || '2' }}
       DSH_NODE_COMPAT_SKIP_TYPECHECK: '1'
-      DSH_OXLINT_THREADS: '8'
-      DSH_PUBLINT_CONCURRENCY: '8'
+      DSH_OXLINT_THREADS: ${{ github.repository == 'deepseek-ai/deepseek-harness' && '8' || '2' }}
+      DSH_PUBLINT_CONCURRENCY: ${{ github.repository == 'deepseek-ai/deepseek-harness' && '8' || '2' }}
       # Failover halves snapshot concurrency for the shared 64-core VM.
-      DSH_SNAPSHOT_MAX_CONCURRENCY: ${{ vars.DSH_CI_FAILOVER_LINUX == 'selfhosted' && github.event.pull_request.user.login != 'dependabot[bot]' && '12' || '32' }}
+      DSH_SNAPSHOT_MAX_CONCURRENCY: ${{ github.repository != 'deepseek-ai/deepseek-harness' && '4' || vars.DSH_CI_FAILOVER_LINUX == 'selfhosted' && github.event.pull_request.user.login != 'dependabot[bot]' && '12' || '32' }}
     steps:
       - uses: actions/checkout@v6
         with:
@@ -213,7 +221,7 @@ jobs:
 
       # Skipped under failover — see the coverage lane's identical rationale.
       - uses: actions/cache/restore@v4
-        if: vars.DSH_CI_FAILOVER_LINUX != 'selfhosted' || github.event.pull_request.user.login == 'dependabot[bot]'
+        if: github.repository != 'deepseek-ai/deepseek-harness' || vars.DSH_CI_FAILOVER_LINUX != 'selfhosted' || github.event.pull_request.user.login == 'dependabot[bot]'
         with:
           path: ${{ steps.pnpm-store.outputs.path }}
           key: ${{ runner.os }}-node-${{ env.PRIMARY_NODE_VERSION }}-pnpm-${{ hashFiles('pnpm-lock.yaml') }}
@@ -223,7 +231,7 @@ jobs:
       # Pull requests restore the cache normally produced by serial-linux on
       # master; they do not pay compression and upload on the required path.
       - uses: actions/cache/restore@v4
-        if: vars.DSH_CI_FAILOVER_LINUX != 'selfhosted' || github.event.pull_request.user.login == 'dependabot[bot]'
+        if: github.repository != 'deepseek-ai/deepseek-harness' || vars.DSH_CI_FAILOVER_LINUX != 'selfhosted' || github.event.pull_request.user.login == 'dependabot[bot]'
         with:
           path: ~/.cache/ms-playwright
           key: ${{ runner.os }}-playwright-${{ hashFiles('pnpm-lock.yaml') }}
@@ -244,13 +252,13 @@ jobs:
           exit "$sandbox_status"
 
       - name: Install Playwright Chromium and hosted dependencies
-        if: vars.DSH_CI_FAILOVER_LINUX != 'selfhosted' || github.event.pull_request.user.login == 'dependabot[bot]'
+        if: github.repository != 'deepseek-ai/deepseek-harness' || vars.DSH_CI_FAILOVER_LINUX != 'selfhosted' || github.event.pull_request.user.login == 'dependabot[bot]'
         run: pnpm --filter @deepseek-ai/dsh-web-frontend exec playwright install --with-deps chromium
 
       # The persistent VM image owns Playwright's Linux system packages; do
       # not mutate the shared host with apt on every failover run.
       - name: Install Playwright Chromium on the failover VM
-        if: vars.DSH_CI_FAILOVER_LINUX == 'selfhosted' && github.event.pull_request.user.login != 'dependabot[bot]'
+        if: github.repository == 'deepseek-ai/deepseek-harness' && vars.DSH_CI_FAILOVER_LINUX == 'selfhosted' && github.event.pull_request.user.login != 'dependabot[bot]'
         run: pnpm --filter @deepseek-ai/dsh-web-frontend exec playwright install chromium
 
       - name: Run compatibility, snapshot, and artifact gates
@@ -437,17 +445,20 @@ jobs:
   # Every pull request also gets a real Windows-kernel signal. This job keeps
   # its own unmasked conclusion but is deliberately absent from
   # all-checks-passed.needs, so it never delays or changes that required
-  # verdict. Under normal operation it runs on the hosted larger runner; under
-  # Windows failover (DSH_CI_FAILOVER_WINDOWS=selfhosted) it retargets onto the
-  # in-house self-hosted Windows pool. Dependabot PRs are excluded from the
-  # self-hosted pool and stay queued for the hosted runner — see the failover
-  # runbook. This Windows switch is independent of the Linux
+  # verdict. The canonical repository normally uses the hosted larger runner
+  # and retargets to the in-house Windows pool under
+  # DSH_CI_FAILOVER_WINDOWS=selfhosted. Derived repositories use the standard
+  # windows-2025 image. Dependabot PRs are excluded from the self-hosted pool
+  # and stay queued for the hosted runner — see the failover runbook. This
+  # Windows switch is independent of the Linux
   # DSH_CI_FAILOVER_LINUX variable that retargets the three required Linux jobs
   # and the all-checks-passed verdict above.
   windows-native:
     if: github.event_name == 'pull_request'
     runs-on: >-
-      ${{ vars.DSH_CI_FAILOVER_WINDOWS == 'selfhosted'
+      ${{ github.repository != 'deepseek-ai/deepseek-harness'
+          && 'windows-2025'
+          || vars.DSH_CI_FAILOVER_WINDOWS == 'selfhosted'
           && github.event.pull_request.user.login != 'dependabot[bot]'
           && fromJSON('["self-hosted", "dsh-win-ci", "windows"]')
           || 'dsh-windows-2025-16core' }}
@@ -456,7 +467,7 @@ jobs:
     env:
       DSH_COVERAGE_MAX_WORKERS: '2'
       DSH_GATE_CONCURRENCY: '2'
-      DSH_PUBLINT_CONCURRENCY: '8'
+      DSH_PUBLINT_CONCURRENCY: ${{ github.repository == 'deepseek-ai/deepseek-harness' && '8' || '2' }}
     steps:
       - uses: actions/checkout@v6
         with:
@@ -921,7 +932,8 @@ jobs:
     # (DSH_CI_FAILOVER_LINUX), not the Windows one, because it aggregates the
     # required Linux workers and runs on the vm-backup pool.
     runs-on: >-
-      ${{ vars.DSH_CI_FAILOVER_LINUX == 'selfhosted'
+      ${{ github.repository == 'deepseek-ai/deepseek-harness'
+          && vars.DSH_CI_FAILOVER_LINUX == 'selfhosted'
           && github.event.pull_request.user.login != 'dependabot[bot]'
           && fromJSON('["self-hosted", "linux", "x64", "vm-backup"]')
           || 'ubuntu-latest' }}
