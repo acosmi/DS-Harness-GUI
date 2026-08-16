@@ -35,7 +35,7 @@
           - id: acosmi-account-fixture
             name: './tests/fixtures/acosmi-provider/fake-account.ts'
           - id: llm-acosmi
-            name: '../../downstream/packages/llm-acosmi/src/index.ts'
+            name: '@acosmi/dsh-llm-acosmi'
             config:
               maxTokens: 8192
               streamIdleTimeoutMs: 30000

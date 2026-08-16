@@ -7,7 +7,9 @@
         config:
           baseURL: !!js process.env.DSH_SNAPSHOT_BASE_URL
           thinking: disabled
-          streamIdleTimeoutMs: 150
+          # The test server's final data follows this deadline; 100 ms SSE
+          # comments keep each outstanding read alive through scheduler delays.
+          streamIdleTimeoutMs: 2000
       - id: agent-spine
         config:
           agents:

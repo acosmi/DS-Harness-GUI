@@ -28,7 +28,7 @@ macOS 参考流程使用 fork 进程运行常规 Vitest 项目。macOS arm64 上
 
 master 分支的参考作业仅用于诊断，不参与拉取请求所要求的 `all checks passed` 结果。CI 与 Sandbox 工作流把跨平台参考流程保留在 master 推送上。系统根据已完成托管作业的时间戳评估性能，并将其报告为测量结果，而不是写成 `timeout-minutes` 值。
 
-可移植的参考流程使用 GitHub 标准的 `ubuntu-latest`、`macos-latest` 和 `windows-2025` 标签。拉取请求必需的 Windows 作业在 `ubuntu-latest` 上通过 Wine 运行，而独立的拉取请求原生作业在正常运行下使用托管的 `dsh-windows-2025-16core` 运行器，故障切换时使用自托管 `[self-hosted, dsh-win-ci, windows]` 池（参见[故障切换手册](2026-07-26-ci-failover-runbook.md)），依据[双 Windows 决策](2026-08-08-native-windows-pull-request-ci.md)不参与必需聚合流程；`serial / windows` 启用时，仍作为第二个完整且未分片的原生内核标尺。依据[必需 CI 决策](2026-07-23-portable-required-pull-request-ci.md)，拉取请求必需作业使用可移植的标准容量。更高核心数的托管运行器仍仅用于手动基准测试，因为正确性路径必须无需仓库外部的运行器配置即可运行。
+可移植的参考流程使用 GitHub 标准的 `ubuntu-latest`、`macos-latest` 和 `windows-2025` 标签。拉取请求必需的 Windows 作业在 `ubuntu-latest` 上通过 Wine 运行；独立的拉取请求原生作业在规范仓库正常运行时使用托管的 `dsh-windows-2025-16core` 运行器，故障切换时使用自托管 `[self-hosted, dsh-win-ci, windows]` 池，派生仓库则使用标准 `windows-2025`（参见[故障切换手册](2026-07-26-ci-failover-runbook.md)）；依据[双 Windows 决策](2026-08-08-native-windows-pull-request-ci.md)，该作业不参与必需聚合流程。`serial / windows` 启用时，仍作为第二个完整且未分片的原生内核标尺。依据[必需 CI 决策](2026-07-23-portable-required-pull-request-ci.md)，派生仓库以可移植的标准容量执行必需清单，规范仓库则保留经测量的大型运行器路径与经过验证的自托管故障切换。
 
 ## 曾考虑的替代方案
 

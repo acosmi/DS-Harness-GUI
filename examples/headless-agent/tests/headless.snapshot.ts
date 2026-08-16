@@ -59,6 +59,10 @@ const headlessSessionExpected = join(snapshotsDir, 'headless-profile', 'session.
 const headlessFailureExpected = join(snapshotsDir, 'headless-profile', 'stderr.expected.txt')
 const cliMockLlmPluginPath = fileURLToPath(new URL('./fixtures/cli-mock-llm.ts', import.meta.url))
 const refreshing = process.env.DSH_SNAPSHOT === 'refresh'
+// Final data follows the 2 s fixture watchdog; 100 ms comments maintain the
+// read through scheduler delays while still proving that comments rearm it.
+const DEEPSEEK_KEEP_ALIVE_INTERVAL_MS = 100
+const DEEPSEEK_KEEP_ALIVE_COUNT = 21
 
 interface JsonObject {
   [key: string]: unknown
@@ -85,11 +89,11 @@ async function deepseekDefaultsServer(): Promise<DeepSeekDefaultsServer> {
     request.on('end', () => {
       requests.push(JSON.parse(body) as JsonObject)
       response.writeHead(200, { 'content-type': 'text/event-stream' })
-      let keepAlives = 3
+      let keepAlives = DEEPSEEK_KEEP_ALIVE_COUNT
       const write = (): void => {
         if (keepAlives-- > 0) {
           response.write(': keep-alive\n\n')
-          setTimeout(write, 60)
+          setTimeout(write, DEEPSEEK_KEEP_ALIVE_INTERVAL_MS)
           return
         }
         response.end([
@@ -99,7 +103,7 @@ async function deepseekDefaultsServer(): Promise<DeepSeekDefaultsServer> {
           '',
         ].join('\n\n'))
       }
-      setTimeout(write, 60)
+      setTimeout(write, DEEPSEEK_KEEP_ALIVE_INTERVAL_MS)
     })
   })
   await new Promise<void>(resolve => server.listen(0, '127.0.0.1', resolve))

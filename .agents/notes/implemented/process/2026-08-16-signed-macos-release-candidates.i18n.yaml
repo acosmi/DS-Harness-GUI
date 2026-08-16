@@ -2,5 +2,5 @@
 # side as of the last confirmed-consistent state. Both languages carry equal authority;
 # after editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write .agents/notes/implemented/process/2026-08-16-signed-macos-release-candidates.md
-2026-08-16-signed-macos-release-candidates.md: a17e90a2e6e9a6603d6f6ff2617cba3ae47f15e3
-2026-08-16-signed-macos-release-candidates.zh.md: a38e3b9d2a7ae1000618c2f75b8624d099681f74
+2026-08-16-signed-macos-release-candidates.md: f76c40b4c232c07392bc13b969f17117c8172ec0
+2026-08-16-signed-macos-release-candidates.zh.md: 085de60ff409a798d42a1ae1e58a315ed6f4d10e

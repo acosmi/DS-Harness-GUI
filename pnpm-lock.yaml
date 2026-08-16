@@ -93,6 +93,9 @@ importers:
       micromark-extension-gfm:
         specifier: ^3.0.0
         version: 3.0.0
+      node-gyp:
+        specifier: ^12.4.0
+        version: 12.4.0
       oxlint:
         specifier: 1.76.0
         version: 1.76.0(oxlint-tsgolint@7.0.2001)
@@ -1591,6 +1594,12 @@ importers:
 
   examples:
     dependencies:
+      '@acosmi/dsh-account-acosmi':
+        specifier: workspace:*
+        version: link:../downstream/packages/account-acosmi
+      '@acosmi/dsh-llm-acosmi':
+        specifier: workspace:*
+        version: link:../downstream/packages/llm-acosmi
       '@deepseek-ai/cordis-plugin-hmr':
         specifier: workspace:*
         version: link:../vendor/hmr

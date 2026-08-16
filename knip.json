@@ -72,6 +72,7 @@
         "**/*.ts"
       ],
       "ignoreDependencies": [
+        "@acosmi/dsh-llm-acosmi",
         "@deepseek-ai/.+"
       ]
     },
@@ -287,7 +288,9 @@
     "downstream/apps/desktop": {
       "entry": [
         "src/globals.d.ts",
+        "src/renderer.ts",
         "electron-builder.config.cjs",
+        "vite.config.ts",
         "scripts/*.cjs"
       ],
       "project": [
@@ -295,6 +298,7 @@
         "scripts/**/*.cjs",
         "*.{ts,cjs}"
       ],
+      "vite": false,
       "ignoreDependencies": [
         "@acosmi/.+",
         "@deepseek-ai/.+",

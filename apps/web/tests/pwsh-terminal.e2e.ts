@@ -16,6 +16,7 @@ import { fileURLToPath } from 'node:url'
 import type { Browser, Page } from 'playwright'
 import { chromium } from 'playwright'
 import { afterAll, beforeAll, describe, expect, it, onTestFailed } from 'vitest'
+import { composeEntries, loadOverlayPatches } from '@deepseek-ai/dsh-app-boot'
 import { resolvePwshPath } from '@deepseek-ai/dsh-pwsh-local'
 import {
   assertFixtureInventory, captureStableAria, compareOrRefreshGolden,
@@ -28,6 +29,8 @@ const SNAPSHOT_DIR = fileURLToPath(new URL('./snapshots/pwsh-terminal', import.m
 const SEED = join(SNAPSHOT_DIR, 'seed.jsonl')
 const TERMINAL_EXPECTED = join(SNAPSHOT_DIR, 'terminal-card.expected.md')
 const OVERLAY = fileURLToPath(new URL('./pwsh-terminal.overlay.yml', import.meta.url))
+const BASE_PATCH = fileURLToPath(new URL('../../../packages/bundle/base/cordis.patch.yml', import.meta.url))
+const WEB_PATCH = fileURLToPath(new URL('../../../packages/bundle/web-app/cordis.patch.yml', import.meta.url))
 const PROMPT = 'Run a PowerShell command that fails, then stop.'
 const SEED_ID = 'pwsh-terminal-web-e2e'
 const MODE = webSnapshotMode()
@@ -42,6 +45,24 @@ const HAS_PWSH = MODE === 'record' ? false : spawnSync(
   resolvePwshPath(), ['-NoLogo', '-NoProfile', '-NonInteractive', '-Command', '$true'],
   { encoding: 'utf8' },
 ).status === 0
+
+describe('pwsh terminal overlay composition', () => {
+  it('enables the shipped tool row without duplicating entry ids', () => {
+    const rows = composeEntries([
+      loadOverlayPatches('pwsh terminal overlay', BASE_PATCH),
+      loadOverlayPatches('pwsh terminal overlay', WEB_PATCH),
+      loadOverlayPatches('pwsh terminal overlay', OVERLAY),
+    ])
+    const ids = rows.map(row => row.id)
+    expect(ids).toHaveLength(new Set(ids).size)
+    expect(rows.filter(row => row.id === 'pwsh-local')).toEqual([
+      expect.objectContaining({ name: '@deepseek-ai/dsh-pwsh-local' }),
+    ])
+    expect(rows.filter(row => row.id === 'tool-pwsh')).toEqual([
+      expect.objectContaining({ name: '@deepseek-ai/dsh-tool-pwsh', disabled: false }),
+    ])
+  })
+})
 
 describe.skipIf(MODE === 'record' || !HAS_PWSH)('web e2e: pwsh calls use the bash terminal-card layout', () => {
   let scaffold: WebScaffold

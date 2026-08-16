@@ -2,13 +2,11 @@ const { spawn } = require('node:child_process')
 const fsp = require('node:fs/promises')
 const { tmpdir } = require('node:os')
 const path = require('node:path')
-const { pathToFileURL } = require('node:url')
 const identity = require('../../../release/identity.json')
 const appManifest = require('../package.json')
 const {
   assertFilesystemRuntimeClosure,
-  ignoredBuildsFromPnpmOutput,
-  assertReviewedIgnoredBuilds,
+  assertNoDeployLifecycleScripts,
   assertSafeStagingPath,
   assertUtilityImports,
   materializeStagedLinks,
@@ -33,9 +31,6 @@ const repositoryRoot = path.resolve(__dirname, '../../../..')
 const appRoot = path.resolve(__dirname, '..')
 const configPath = path.join(appRoot, 'electron-builder.config.cjs')
 const workspaceStatePath = path.join(repositoryRoot, 'node_modules', '.pnpm-workspace-state-v1.json')
-const expectedIgnoredBuild = `@deepseek-ai/dsh-subprocess-local@${pathToFileURL(
-  path.join(repositoryRoot, 'packages/subprocess/subprocess-local'),
-).href}`
 const electronBuilderCli = require.resolve('electron-builder/cli.js')
 const MAX_CAPTURED_OUTPUT_BYTES = 8 * 1024 * 1024
 const targetDefinitions = {
@@ -129,6 +124,7 @@ async function stage(target, staging) {
     APP_PACKAGE,
     'deploy',
     '--prod',
+    '--ignore-scripts',
     '--config.inject-workspace-packages=true',
     '--config.node-linker=hoisted',
     '--config.link-workspace-packages=true',
@@ -137,9 +133,8 @@ async function stage(target, staging) {
     `--cpu=${definition.cpu}`,
     staging,
   ], { capture: true }))
-  const ignoredBuilds = ignoredBuildsFromPnpmOutput(deployOutput)
-  assertReviewedIgnoredBuilds(ignoredBuilds, expectedIgnoredBuild)
-  console.log(`dsh-gui package: reviewed ignored build: ${ignoredBuilds[0]}`)
+  assertNoDeployLifecycleScripts(deployOutput)
+  console.log('dsh-gui package: dependency lifecycle scripts remained disabled during deploy')
   await materializeStagedLinks(staging)
   prepareTargetRuntime(staging, target)
   const normalizedManifests = normalizeStagedManifestDependencies(staging)
