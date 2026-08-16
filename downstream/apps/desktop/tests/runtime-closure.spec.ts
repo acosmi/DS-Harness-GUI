@@ -150,7 +150,7 @@ describe('desktop package runtime closure', () => {
       packageNames: ['koffi@3.1.1'],
     }))).not.toThrow()
     closure.prepareTargetRuntime(root, 'darwin-arm64')
-    expect(statSync(helper).mode & 0o111).toBe(0o111)
+    if (process.platform !== 'win32') expect(statSync(helper).mode & 0o111).toBe(0o111)
     expect(existsSync(foreignPrebuild)).toBe(false)
 
     expect(() => closure.assertNoDeployLifecycleScripts(JSON.stringify({
