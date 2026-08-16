@@ -6,7 +6,6 @@ const {
   FuseVersion,
   FuseV1Options,
 } = require('@electron/fuses')
-const { signAsync } = require('@electron/osx-sign')
 const asar = require('@electron/asar')
 const identity = require('../../../release/identity.json')
 const { assertAsarRuntimeClosure } = require('./runtime-closure.cjs')
@@ -78,6 +77,7 @@ function assertMacHelperIdentifiers(actualIdentifiers, productName, macIdentity)
 }
 
 async function signDevelopmentApp(appPath) {
+  const { sign } = await import('@electron/osx-sign')
   const entitlements = path.resolve(__dirname, '../resources/entitlements.mac.plist')
   const options = {
     app: appPath,
@@ -95,7 +95,7 @@ async function signDevelopmentApp(appPath) {
 
   for (let attempt = 0; attempt < 2; attempt += 1) {
     try {
-      await signAsync(options)
+      await sign(options)
       childProcess.execFileSync('/usr/bin/codesign', ['--verify', '--deep', '--strict', appPath])
       return
     } catch (error) {
