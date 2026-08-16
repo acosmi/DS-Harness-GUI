@@ -171,6 +171,47 @@ function verifyZip(zipPath, channel, expectedArchitecture) {
   }
 }
 
+function electronBuilderBlockmapBuilder() {
+  const electronBuilderManifest = require.resolve('electron-builder/package.json')
+  const blockmapModulePath = require.resolve(
+    'app-builder-lib/out/targets/blockmap/blockmap.js',
+    { paths: [path.dirname(electronBuilderManifest)] },
+  )
+  const blockmapModule = require(blockmapModulePath)
+  if (typeof blockmapModule.buildBlockMap !== 'function') {
+    throw new Error('electron-builder blockmap generator is unavailable')
+  }
+  return blockmapModule.buildBlockMap
+}
+
+/**
+ * Replace a packaged artifact's blockmap with one generated from its current bytes.
+ * @param {string} artifactPath - final artifact whose bytes the blockmap must describe.
+ * @returns {Promise<string>} regenerated blockmap path.
+ */
+async function rebuildArtifactBlockmap(artifactPath) {
+  const artifact = fs.statSync(artifactPath)
+  if (!artifact.isFile()) throw new Error(`blockmap source is not a file: ${artifactPath}`)
+  const blockmapPath = `${artifactPath}.blockmap`
+  const temporaryPath = `${blockmapPath}.${process.pid}.tmp`
+  try {
+    const result = await electronBuilderBlockmapBuilder()(artifactPath, 'gzip', temporaryPath)
+    const finalArtifact = fs.statSync(artifactPath)
+    if (!finalArtifact.isFile() || result === null || typeof result !== 'object'
+      || result.size !== finalArtifact.size) {
+      throw new Error(`generated blockmap does not describe the final artifact bytes: ${artifactPath}`)
+    }
+    const temporaryBlockmap = fs.statSync(temporaryPath)
+    if (!temporaryBlockmap.isFile() || temporaryBlockmap.size === 0) {
+      throw new Error(`generated blockmap is empty: ${temporaryPath}`)
+    }
+    fs.renameSync(temporaryPath, blockmapPath)
+  } finally {
+    fs.rmSync(temporaryPath, { force: true })
+  }
+  return blockmapPath
+}
+
 async function sha256(file) {
   const hash = crypto.createHash('sha256')
   await new Promise((resolve, reject) => {
@@ -238,6 +279,7 @@ async function finalizeMacArtifacts(options) {
     if (!fs.statSync(artifact).isFile()) throw new Error(`expected macOS artifact is not a file: ${artifact}`)
   }
   const submissionId = notarizeAndVerifyDmg(options.dmgPath, options.environment ?? process.env)
+  await rebuildArtifactBlockmap(options.dmgPath)
   verifyZip(options.zipPath, options.channel, options.expectedArchitecture)
   const [dmgSha256, zipSha256] = await Promise.all([sha256(options.dmgPath), sha256(options.zipPath)])
   return { dmgSha256, submissionId, zipSha256 }
@@ -249,5 +291,6 @@ module.exports = {
   macArtifactPaths,
   notaryAuthorizationArgs,
   parseNotarySubmission,
+  rebuildArtifactBlockmap,
   removeMacArtifactResidue,
 }
