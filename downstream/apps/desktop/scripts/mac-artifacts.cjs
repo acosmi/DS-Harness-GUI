@@ -13,6 +13,7 @@ const {
   assertMacSigningIdentityFacts,
   collectMachOFiles,
   parseCodesignDisplay,
+  verifyMacSigningCertificate,
 } = require('./after-sign.cjs')
 
 const MAX_COMMAND_OUTPUT_BYTES = 8 * 1024 * 1024
@@ -92,11 +93,13 @@ function verifyApplication(appPath, channel, expectedArchitecture) {
   const channelIdentity = identity.channels[channel]
   run('/usr/bin/codesign', ['--verify', '--deep', '--strict', '--verbose=4', appPath], 'codesign application')
   assertMacSignatureFacts(codesignDisplay(appPath), channelIdentity.bundleId, identity.macSigning)
+  verifyMacSigningCertificate(appPath, identity.macSigning, 'packaged macOS application')
   const machOFiles = collectMachOFiles(appPath)
   if (machOFiles.length === 0) throw new Error('packaged application contains no Mach-O code')
   for (const file of machOFiles) {
     const subject = path.relative(appPath, file)
     assertMacSigningIdentityFacts(codesignDisplay(file), identity.macSigning, subject)
+    verifyMacSigningCertificate(file, identity.macSigning, subject)
     assertMacArchitecture(
       run('/usr/bin/lipo', ['-archs', file], `lipo ${subject}`),
       expectedArchitecture,
@@ -123,6 +126,7 @@ function notarizeAndVerifyDmg(dmgPath, environment) {
   run('/usr/bin/xcrun', ['stapler', 'validate', '-v', dmgPath], 'stapler validate disk image')
   run('/usr/bin/codesign', ['--verify', '--strict', '--verbose=4', dmgPath], 'codesign disk image')
   assertMacSigningIdentityFacts(codesignDisplay(dmgPath), identity.macSigning, path.basename(dmgPath))
+  verifyMacSigningCertificate(dmgPath, identity.macSigning, path.basename(dmgPath))
   run(
     '/usr/sbin/spctl',
     ['--assess', '--type', 'open', '--context', 'context:primary-signature', '--verbose=4', dmgPath],
@@ -156,6 +160,52 @@ async function sha256(file) {
 }
 
 /**
+ * Resolve the two distributable paths for one isolated macOS target.
+ * @param {string} artifactRoot - channel-specific artifact directory.
+ * @param {string} productName - channel product name.
+ * @param {string} version - desktop package version.
+ * @param {'arm64' | 'x64'} arch - electron-builder artifact architecture.
+ * @returns {{ dmgPath: string; zipPath: string }} exact distributable paths.
+ */
+function macArtifactPaths(artifactRoot, productName, version, arch) {
+  const artifactBase = `${productName}-${version}-${arch}`
+  return {
+    dmgPath: path.join(artifactRoot, `${artifactBase}.dmg`),
+    zipPath: path.join(artifactRoot, `${artifactBase}.zip`),
+  }
+}
+
+/**
+ * Remove only the named target's old distributables and update metadata.
+ * @param {{ dmgPath: string; zipPath: string }} artifacts - exact target paths.
+ * @returns {string[]} removed paths.
+ */
+function removeMacArtifactResidue(artifacts) {
+  const candidates = [
+    artifacts.dmgPath,
+    `${artifacts.dmgPath}.blockmap`,
+    artifacts.zipPath,
+    `${artifacts.zipPath}.blockmap`,
+  ]
+  const removed = []
+  for (const candidate of candidates) {
+    let details
+    try {
+      details = fs.lstatSync(candidate)
+    } catch (error) {
+      if (error !== null && typeof error === 'object' && error.code === 'ENOENT') continue
+      throw error
+    }
+    if (details.isDirectory()) {
+      throw new Error(`refusing to remove macOS artifact residue because it is a directory: ${candidate}`)
+    }
+    fs.unlinkSync(candidate)
+    removed.push(candidate)
+  }
+  return removed
+}
+
+/**
  * Notarize the final DMG and verify both distributable formats after packaging.
  * @param {{ channel: 'stable' | 'canary'; dmgPath: string; environment?: NodeJS.ProcessEnv; expectedArchitecture: 'arm64' | 'x86_64'; zipPath: string }} options - final artifact paths and target facts.
  * @returns {Promise<{ dmgSha256: string; submissionId: string; zipSha256: string }>} Apple submission and final hashes.
@@ -172,6 +222,8 @@ async function finalizeMacArtifacts(options) {
 
 module.exports = {
   finalizeMacArtifacts,
+  macArtifactPaths,
   notaryAuthorizationArgs,
   parseNotarySubmission,
+  removeMacArtifactResidue,
 }

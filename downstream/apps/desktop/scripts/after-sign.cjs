@@ -1,7 +1,9 @@
 'use strict'
 
 const childProcess = require('node:child_process')
+const crypto = require('node:crypto')
 const fs = require('node:fs')
+const os = require('node:os')
 const path = require('node:path')
 const identity = require('../../../release/identity.json')
 const { desktopChannel, desktopReleaseMode, desktopTrustedSigning } = require('./build-environment.cjs')
@@ -62,6 +64,19 @@ function assertMacSigningIdentityFacts(facts, signing, subject) {
   }
   if (facts.timestamp === undefined || facts.timestamp.length === 0) {
     throw new Error(`${subject} has no secure timestamp`)
+  }
+}
+
+/**
+ * Assert that an extracted leaf certificate matches the release ledger SHA-1.
+ * @param {Buffer} certificate - ASN.1 DER leaf certificate bytes.
+ * @param {string} expectedSha1 - uppercase SHA-1 from the public release ledger.
+ * @param {string} subject - non-secret artifact-relative object label.
+ */
+function assertMacCertificateSha1(certificate, expectedSha1, subject) {
+  const actualSha1 = crypto.createHash('sha1').update(certificate).digest('hex').toUpperCase()
+  if (actualSha1 !== expectedSha1) {
+    throw new Error(`${subject} certificate SHA-1 is ${actualSha1}, expected ${expectedSha1}`)
   }
 }
 
@@ -126,6 +141,33 @@ function runCodesign(args) {
   return `${result.stdout}\n${result.stderr}`
 }
 
+/**
+ * Build codesign arguments with an explicitly bound certificate-output prefix.
+ * @param {string} prefix - owned temporary output prefix.
+ * @param {string} file - signed code object or disk-image path.
+ * @returns {string[]} codesign display arguments.
+ */
+function macCertificateExtractionArgs(prefix, file) {
+  return ['--display', `--extract-certificates=${prefix}`, file]
+}
+
+/**
+ * Extract and verify the leaf certificate embedded in one code signature.
+ * @param {string} file - signed code object or disk-image path.
+ * @param {{ identitySha1: string }} signing - public certificate record.
+ * @param {string} subject - non-secret artifact-relative object label.
+ */
+function verifyMacSigningCertificate(file, signing, subject) {
+  const temporaryRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'dsh-gui-signing-certificate-'))
+  const prefix = path.join(temporaryRoot, 'certificate-')
+  try {
+    runCodesign(macCertificateExtractionArgs(prefix, file))
+    assertMacCertificateSha1(fs.readFileSync(`${prefix}0`), signing.identitySha1, subject)
+  } finally {
+    fs.rmSync(temporaryRoot, { recursive: true, force: true })
+  }
+}
+
 function runCommand(command, args, label) {
   const result = childProcess.spawnSync(command, args, {
     encoding: 'utf8',
@@ -167,12 +209,14 @@ async function afterSign(context) {
   runCodesign(['--verify', '--deep', '--strict', '--verbose=4', appPath])
   const facts = parseCodesignDisplay(runCodesign(['--display', '--verbose=4', appPath]))
   assertMacSignatureFacts(facts, channelIdentity.bundleId, identity.macSigning)
+  verifyMacSigningCertificate(appPath, identity.macSigning, 'signed macOS application')
   const machOFiles = collectMachOFiles(appPath)
   if (machOFiles.length === 0) throw new Error('signed macOS application contains no Mach-O code')
   for (const file of machOFiles) {
     const subject = path.relative(appPath, file)
     const codeFacts = parseCodesignDisplay(runCodesign(['--display', '--verbose=4', file]))
     assertMacSigningIdentityFacts(codeFacts, identity.macSigning, subject)
+    verifyMacSigningCertificate(file, identity.macSigning, subject)
     assertMacArchitecture(
       runCommand('/usr/bin/lipo', ['-archs', file], `lipo ${subject}`),
       expectedArchitecture,
@@ -190,8 +234,11 @@ async function afterSign(context) {
 
 module.exports = afterSign
 module.exports.assertMacArchitecture = assertMacArchitecture
+module.exports.assertMacCertificateSha1 = assertMacCertificateSha1
 module.exports.assertMacSigningIdentityFacts = assertMacSigningIdentityFacts
 module.exports.assertMacSignatureFacts = assertMacSignatureFacts
 module.exports.collectMachOFiles = collectMachOFiles
 module.exports.isMachOHeader = isMachOHeader
+module.exports.macCertificateExtractionArgs = macCertificateExtractionArgs
 module.exports.parseCodesignDisplay = parseCodesignDisplay
+module.exports.verifyMacSigningCertificate = verifyMacSigningCertificate

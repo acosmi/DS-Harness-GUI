@@ -22,7 +22,11 @@ const {
   desktopReleaseMode,
   desktopTrustedSigning,
 } = require('./build-environment.cjs')
-const { finalizeMacArtifacts } = require('./mac-artifacts.cjs')
+const {
+  finalizeMacArtifacts,
+  macArtifactPaths,
+  removeMacArtifactResidue,
+} = require('./mac-artifacts.cjs')
 
 const APP_PACKAGE = '@acosmi/dsh-desktop-app'
 const repositoryRoot = path.resolve(__dirname, '../../../..')
@@ -151,12 +155,29 @@ async function main() {
   const cli = parseCli(process.argv.slice(2))
   const releaseMode = desktopReleaseMode()
   const trustedSigning = desktopTrustedSigning(releaseMode)
+  const channel = desktopChannel()
+  const macArtifacts = new Map()
+  if (!cli.directoryOnly) {
+    for (const target of cli.targets) {
+      if (targetDefinitions[target].os !== 'darwin') continue
+      const artifacts = macArtifactPaths(
+        path.join(repositoryRoot, '.artifacts', 'desktop', channel),
+        identity.channels[channel].productName,
+        appManifest.version,
+        targetDefinitions[target].cpu,
+      )
+      macArtifacts.set(target, artifacts)
+      const removed = removeMacArtifactResidue(artifacts)
+      if (removed.length > 0) {
+        console.log(`dsh-gui package: removed ${removed.length} old ${target} artifact files`)
+      }
+    }
+  }
   if (trustedSigning && cli.targets.some(target => targetDefinitions[target].os === 'darwin')
     && desktopMacNotarizationCredentials() === null) {
     throw new Error('trusted macOS packaging requires complete Apple notarization credentials')
   }
   for (const target of cli.targets) {
-    const channel = desktopChannel()
     const staging = await fsp.mkdtemp(path.join(tmpdir(), `dsh-gui-desktop-staging-${channel}-${target}-`))
     try {
       await stage(target, staging)
@@ -174,14 +195,13 @@ async function main() {
       await run(`electron-builder ${target}`, process.execPath, builderArgs)
       if (!cli.directoryOnly && trustedSigning && targetDefinitions[target].os === 'darwin') {
         const arch = targetDefinitions[target].cpu
-        const productName = identity.channels[channel].productName
-        const artifactRoot = path.join(repositoryRoot, '.artifacts', 'desktop', channel)
-        const artifactBase = `${productName}-${appManifest.version}-${arch}`
+        const artifacts = macArtifacts.get(target)
+        if (artifacts === undefined) throw new Error(`missing macOS artifact paths for ${target}`)
         const result = await finalizeMacArtifacts({
           channel,
-          dmgPath: path.join(artifactRoot, `${artifactBase}.dmg`),
+          dmgPath: artifacts.dmgPath,
           expectedArchitecture: arch === 'arm64' ? 'arm64' : 'x86_64',
-          zipPath: path.join(artifactRoot, `${artifactBase}.zip`),
+          zipPath: artifacts.zipPath,
         })
         console.log(`dsh-gui package: ${target} DMG notarization ${result.submissionId}`)
         console.log(`dsh-gui package: ${target} DMG SHA-256 ${result.dmgSha256}`)

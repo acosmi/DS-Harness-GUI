@@ -1,19 +1,23 @@
+import { createHash } from 'node:crypto'
 import { createRequire } from 'node:module'
 import { describe, expect, it } from 'vitest'
 
 const require = createRequire(import.meta.url)
 const identity = require('../../../release/identity.json') as {
-  macSigning: { authorityChain: string[]; commonName: string; teamId: string }
+  macSigning: { authorityChain: string[]; commonName: string; identitySha1: string; teamId: string }
   channels: { stable: { bundleId: string } }
 }
 const {
   assertMacArchitecture,
+  assertMacCertificateSha1,
   assertMacSigningIdentityFacts,
   assertMacSignatureFacts,
   isMachOHeader,
+  macCertificateExtractionArgs,
   parseCodesignDisplay,
 } = require('../scripts/after-sign.cjs') as {
   assertMacArchitecture(output: string, expected: string, subject: string): void
+  assertMacCertificateSha1(certificate: Buffer, expectedSha1: string, subject: string): void
   assertMacSigningIdentityFacts(
     facts: ReturnType<typeof parseCodesignDisplay>,
     signing: typeof identity.macSigning,
@@ -24,6 +28,7 @@ const {
     bundleId: string,
     signing: typeof identity.macSigning,
   ): void
+  macCertificateExtractionArgs(prefix: string, file: string): string[]
   parseCodesignDisplay(output: string): {
     authorities: string[]
     identifier?: string
@@ -85,6 +90,25 @@ describe('stable macOS signature acceptance', () => {
       identity.macSigning,
       'Contents/Frameworks/DSH-GUI Helper.app/Contents/MacOS/DSH-GUI Helper',
     )).toThrow(/authority chain/)
+  })
+
+  it('accepts only the exact leaf certificate SHA-1 embedded in each signature', () => {
+    const certificate = Buffer.from('recorded Developer ID leaf certificate')
+    const expectedSha1 = createHash('sha1').update(certificate).digest('hex').toUpperCase()
+    expect(() => assertMacCertificateSha1(certificate, expectedSha1, 'Contents/MacOS/DSH-GUI')).not.toThrow()
+    expect(() => assertMacCertificateSha1(
+      certificate,
+      identity.macSigning.identitySha1,
+      'Contents/MacOS/DSH-GUI',
+    )).toThrow(/certificate SHA-1/)
+  })
+
+  it('binds the certificate extraction prefix as one codesign option', () => {
+    expect(macCertificateExtractionArgs('/tmp/certificate-', '/tmp/DSH-GUI.app')).toEqual([
+      '--display',
+      '--extract-certificates=/tmp/certificate-',
+      '/tmp/DSH-GUI.app',
+    ])
   })
 
   it('recognizes thin and universal Mach-O headers without accepting arbitrary files', () => {

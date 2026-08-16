@@ -8,7 +8,7 @@ function desktopChannel(environment = process.env) {
   throw new Error(`DSH_DESKTOP_CHANNEL must be stable or canary, received ${JSON.stringify(value)}`)
 }
 
-/** Parse whether the build is a signed stable candidate or a development artifact. */
+/** Parse the desktop release mode without accepting an unknown value. */
 function desktopReleaseMode(environment = process.env) {
   const value = environment.DSH_DESKTOP_RELEASE_MODE
   if (value === undefined || value === 'development') return 'development'

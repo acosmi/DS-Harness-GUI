@@ -3,7 +3,6 @@ const identity = require('../../release/identity.json')
 const {
   desktopChannel,
   desktopMacIdentity,
-  desktopMacNotarizationCredentials,
   desktopReleaseMode,
   desktopTrustedSigning,
 } = require('./scripts/build-environment.cjs')
@@ -12,9 +11,6 @@ const channel = desktopChannel()
 const channelIdentity = identity.channels[channel]
 const releaseMode = desktopReleaseMode()
 const trustedSigning = desktopTrustedSigning(releaseMode)
-if (trustedSigning && desktopMacNotarizationCredentials() === null) {
-  throw new Error('trusted macOS packaging requires complete Apple notarization credentials')
-}
 const repositoryRoot = path.resolve(__dirname, '../../..')
 const productIcon = path.join(repositoryRoot, 'assets/branding/dsh-gui-whale-browser-logo-v6.png')
 

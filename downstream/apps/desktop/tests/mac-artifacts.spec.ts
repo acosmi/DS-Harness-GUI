@@ -1,10 +1,25 @@
+import { mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { createRequire } from 'node:module'
+import { tmpdir } from 'node:os'
+import path from 'node:path'
 import { describe, expect, it } from 'vitest'
 
 const require = createRequire(import.meta.url)
-const { notaryAuthorizationArgs, parseNotarySubmission } = require('../scripts/mac-artifacts.cjs') as {
+const {
+  macArtifactPaths,
+  notaryAuthorizationArgs,
+  parseNotarySubmission,
+  removeMacArtifactResidue,
+} = require('../scripts/mac-artifacts.cjs') as {
+  macArtifactPaths(
+    artifactRoot: string,
+    productName: string,
+    version: string,
+    arch: 'arm64' | 'x64',
+  ): { dmgPath: string; zipPath: string }
   notaryAuthorizationArgs(environment?: NodeJS.ProcessEnv): string[]
   parseNotarySubmission(output: string): string
+  removeMacArtifactResidue(artifacts: { dmgPath: string; zipPath: string }): string[]
 }
 
 describe('macOS artifact notarization inputs', () => {
@@ -47,5 +62,40 @@ describe('macOS artifact notarization inputs', () => {
       .toThrow(/accepted submission/)
     expect(() => parseNotarySubmission(JSON.stringify({ status: 'Accepted' })))
       .toThrow(/accepted submission/)
+  })
+})
+
+describe('macOS artifact preparation', () => {
+  it('removes only the selected target distributables and blockmaps', () => {
+    const root = mkdtempSync(path.join(tmpdir(), 'dsh-gui-artifact-cleanup-'))
+    try {
+      const artifacts = macArtifactPaths(root, 'DSH-GUI', '1.2.3', 'arm64')
+      const candidates = [
+        artifacts.dmgPath,
+        `${artifacts.dmgPath}.blockmap`,
+        artifacts.zipPath,
+        `${artifacts.zipPath}.blockmap`,
+      ]
+      for (const candidate of candidates) writeFileSync(candidate, 'old artifact')
+      const unrelated = path.join(root, 'DSH-GUI-1.2.3-x64.dmg')
+      writeFileSync(unrelated, 'unrelated artifact')
+
+      expect(removeMacArtifactResidue(artifacts)).toEqual(candidates)
+      expect(() => removeMacArtifactResidue(artifacts)).not.toThrow()
+      expect(readFileSync(unrelated, 'utf8')).toBe('unrelated artifact')
+    } finally {
+      rmSync(root, { recursive: true, force: true })
+    }
+  })
+
+  it('refuses to recursively remove a directory at an artifact path', () => {
+    const root = mkdtempSync(path.join(tmpdir(), 'dsh-gui-artifact-cleanup-'))
+    try {
+      const artifacts = macArtifactPaths(root, 'DSH-GUI', '1.2.3', 'x64')
+      mkdirSync(artifacts.dmgPath)
+      expect(() => removeMacArtifactResidue(artifacts)).toThrow(/because it is a directory/)
+    } finally {
+      rmSync(root, { recursive: true, force: true })
+    }
   })
 })

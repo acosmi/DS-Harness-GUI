@@ -6,7 +6,7 @@ Status: implemented
 
 ## Problem
 
-[DSH-GUI 发行提案](../../proposed/feature/2026-08-14-dsh-gui-product-distribution.md)把代码完成、签名产物证据与 stable 公开发行就绪分开处理，但原实现只提供 development 与 stable 两种构建模式。stable 签名要求 `apple-signing-and-notary` 已 ready，而该输入又要求最终 arm64 与 x64 产物已经签名、公证并 staple 作为证据，因此发行检查禁止了满足自身前置条件所必需的操作。
+[DSH-GUI 发行账本策略](../../../../downstream/release/README.md)把代码完成、签名产物证据与 stable 公开发行就绪分开处理，但原实现只提供 development 与 stable 两种构建模式。stable 签名要求 `apple-signing-and-notary` 已 ready，而该输入又要求最终 arm64 与 x64 产物已经签名、公证并 staple 作为证据，因此发行检查禁止了满足自身前置条件所必需的操作。
 
 原打包路径还允许 electron-builder 在没有识别到凭据环境时跳过公证；它会在生成目标前公证并 staple 应用，却不提交最终 DMG；签名检查也没有证明每个 Mach-O 只包含隔离构建的目标架构。因此，命令成功并不一定提供发行账本要求的完整证据。
 
@@ -18,13 +18,13 @@ candidate 与 stable 应用都报告加密事实 `signing: signed`，因此可�
 
 凭据预检只接受一组完整的 App Store Connect API key、Apple ID app password 或 notarytool 钥匙串 profile。凭据不完整或同时混用多组会在暂存前失败。凭据值只作为进程输入，不进入仓库文件、产物日志或构建 metadata。
 
-对于隔离构建的每个 arm64 或 x64 目标，electron-builder 会使用精确记录的身份签名应用，提交 Apple、等待接受并 staple。签名后检查随后验证最外层 Bundle ID 与 hardened runtime、账本记录的 Team 与 Authority 链、安全时间戳、每个 Mach-O 只有一个预期架构、staple ticket 以及 Gatekeeper 验收。目标生成后，打包器会单独提交并 staple 已签名 DMG，验证其账本身份与 Gatekeeper 验收，再把 ZIP 解到私有随机临时目录并重复完整应用检查。SHA-256 只对最终字节计算。
+暂存隔离构建的任一 arm64 或 x64 目标前，打包器只删除该目标的指定 DMG、ZIP 与 blockmap。electron-builder 随后使用精确记录的身份签名应用，提交 Apple、等待接受并 staple。签名后检查会验证最外层 Bundle ID 与 hardened runtime，从每个代码签名提取叶证书并把其 SHA-1 与账本比对，同时检查账本记录的 Team 与 Authority 链、安全时间戳、每个 Mach-O 只有一个预期架构、staple ticket 以及 Gatekeeper 验收。目标生成后，打包器会单独提交并 staple 已签名 DMG，验证其精确叶证书与 Gatekeeper 验收，再把 ZIP 解到私有随机临时目录并重复完整应用检查。SHA-256 只对最终字节计算。
 
 受支持的证据入口是 `pnpm run desktop:package:mac:candidate`。公开 stable 打包仍使用 `pnpm run desktop:package:mac:stable`，candidate 证据不能替代无关的 SDK、OAuth、更新、法律、支持、Windows 或审批输入。
 
 ## Verification
 
-聚焦测试固定 release mode 解析、精确证书选择、受信签名分类、完整且互斥的凭据组、notarytool 参数构造、已接受提交解析与单一目标架构检查。最终 candidate 执行提供两种架构的 Apple submission id、Developer ID 与 Gatekeeper 结果、各格式 SHA-256 以及 ZIP 解包检查证据。
+聚焦测试固定 release mode 解析、精确证书选择与签名后指纹检查、受信签名分类、完整且互斥的凭据组、目标专属旧产物清理、notarytool 参数构造、已接受提交解析与单一目标架构检查。最终 candidate 执行提供两种架构的 Apple submission id、Developer ID 与 Gatekeeper 结果、各格式 SHA-256 以及 ZIP 解包检查证据。
 
 ## Alternatives considered
 
