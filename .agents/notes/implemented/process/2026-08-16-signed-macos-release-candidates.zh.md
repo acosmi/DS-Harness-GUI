@@ -18,7 +18,7 @@ candidate 与 stable 应用都报告加密事实 `signing: signed`，因此可�
 
 凭据预检只接受一组完整的 App Store Connect API key、Apple ID app password 或 notarytool 钥匙串 profile。凭据不完整或同时混用多组会在暂存前失败。凭据值只作为进程输入，不进入仓库文件、产物日志或构建 metadata。
 
-暂存隔离构建的任一 arm64 或 x64 目标前，打包器只删除该目标的指定 DMG、ZIP 与 blockmap。目标部署禁用全部依赖生命周期脚本，并拒绝任何报告出的生命周期执行；按目标选择的预编译包提供原生二进制，打包器显式恢复 node-pty helper 权限，现有文件系统与 ASAR 审计再证明原生运行时完整。electron-builder 随后解析账本记录的身份，自定义签名器再把精确 SHA-1 原样传入 codesign，避免替换成可能重复的通用名称；随后 electron-builder 提交应用、等待 Apple 接受并 staple。签名后检查会验证最外层 Bundle ID 与 hardened runtime，从每个代码签名提取叶证书并把其 SHA-1 与账本比对，同时检查账本记录的 Team 与 Authority 链、安全时间戳、每个 Mach-O 只有一个预期架构、staple ticket 以及 Gatekeeper 验收。目标生成后，打包器会单独提交并 staple 已签名 DMG，验证其精确叶证书与 Gatekeeper 验收，再把 ZIP 解到私有随机临时目录并重复完整应用检查。SHA-256 只对最终字节计算。
+暂存隔离构建的任一 arm64 或 x64 目标前，打包器只删除该目标的指定 DMG、ZIP 与 blockmap。目标部署禁用全部依赖生命周期脚本，并拒绝任何报告出的生命周期执行；按目标选择的预编译包提供原生二进制，打包器显式恢复 node-pty helper 权限，现有文件系统与 ASAR 审计再证明原生运行时完整。electron-builder 随后解析账本记录的身份，自定义签名器再把精确 SHA-1 原样传入 codesign，避免替换成可能重复的通用名称；随后 electron-builder 提交应用、等待 Apple 接受并 staple。签名后检查会验证最外层 Bundle ID 与 hardened runtime，从每个代码签名提取叶证书并把其 SHA-1 与账本比对，同时检查账本记录的 Team 与 Authority 链、安全时间戳、每个 Mach-O 只有一个预期架构、staple ticket 以及 Gatekeeper 验收。目标生成后，打包器会在单独提交前验证已签名 DMG 与精确叶证书。Apple 接受后，打包器会 staple 并验证 ticket，检查 UDIF 完整性和签名 cdhash 未改变，并要求 Gatekeeper 验收；随后把 ZIP 解到私有随机临时目录并重复完整应用检查。SHA-256 只对最终字节计算。
 
 受支持的证据入口是 `pnpm run desktop:package:mac:candidate`。公开 stable 打包仍使用 `pnpm run desktop:package:mac:stable`，candidate 证据不能替代无关的 SDK、OAuth、更新、法律、支持、Windows 或审批输入。
 

@@ -6,11 +6,13 @@ import { describe, expect, it } from 'vitest'
 
 const require = createRequire(import.meta.url)
 const {
+  assertMacCdhashUnchanged,
   macArtifactPaths,
   notaryAuthorizationArgs,
   parseNotarySubmission,
   removeMacArtifactResidue,
 } = require('../scripts/mac-artifacts.cjs') as {
+  assertMacCdhashUnchanged(before: string | undefined, after: string | undefined, subject: string): void
   macArtifactPaths(
     artifactRoot: string,
     productName: string,
@@ -23,6 +25,16 @@ const {
 }
 
 describe('macOS artifact notarization inputs', () => {
+  it('requires ticket stapling to preserve the signed DMG cdhash', () => {
+    expect(() => assertMacCdhashUnchanged('signed-cdhash', 'signed-cdhash', 'DSH-GUI.dmg')).not.toThrow()
+    expect(() => assertMacCdhashUnchanged(undefined, 'signed-cdhash', 'DSH-GUI.dmg'))
+      .toThrow(/no signed disk-image cdhash/)
+    expect(() => assertMacCdhashUnchanged('signed-cdhash', undefined, 'DSH-GUI.dmg'))
+      .toThrow(/no disk-image cdhash after ticket stapling/)
+    expect(() => assertMacCdhashUnchanged('signed-cdhash', 'changed-cdhash', 'DSH-GUI.dmg'))
+      .toThrow(/cdhash changed/)
+  })
+
   it('maps each complete credential family to notarytool arguments', () => {
     expect(notaryAuthorizationArgs({
       APPLE_KEYCHAIN: '/tmp/release.keychain-db',

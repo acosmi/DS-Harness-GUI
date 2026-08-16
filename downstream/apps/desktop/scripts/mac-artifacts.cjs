@@ -89,6 +89,24 @@ function codesignDisplay(file) {
   ))
 }
 
+/**
+ * Require stapling to preserve the signed disk image's CodeDirectory hash.
+ * @param {string | undefined} before - cdhash read from the verified signed image.
+ * @param {string | undefined} after - cdhash read after ticket stapling.
+ * @param {string} subject - non-secret artifact-relative object label.
+ */
+function assertMacCdhashUnchanged(before, after, subject) {
+  if (before === undefined || before.length === 0) {
+    throw new Error(`${subject} has no signed disk-image cdhash before notarization`)
+  }
+  if (after === undefined || after.length === 0) {
+    throw new Error(`${subject} has no disk-image cdhash after ticket stapling`)
+  }
+  if (after !== before) {
+    throw new Error(`${subject} cdhash changed from ${before} to ${after} during ticket stapling`)
+  }
+}
+
 function verifyApplication(appPath, channel, expectedArchitecture) {
   const channelIdentity = identity.channels[channel]
   run('/usr/bin/codesign', ['--verify', '--deep', '--strict', '--verbose=4', appPath], 'codesign application')
@@ -115,6 +133,11 @@ function verifyApplication(appPath, channel, expectedArchitecture) {
 }
 
 function notarizeAndVerifyDmg(dmgPath, environment) {
+  const subject = path.basename(dmgPath)
+  run('/usr/bin/codesign', ['--verify', '--strict', '--verbose=4', dmgPath], 'codesign disk image')
+  const signedFacts = codesignDisplay(dmgPath)
+  assertMacSigningIdentityFacts(signedFacts, identity.macSigning, subject)
+  verifyMacSigningCertificate(dmgPath, identity.macSigning, subject)
   const authorization = notaryAuthorizationArgs(environment)
   const output = execute(
     '/usr/bin/xcrun',
@@ -124,9 +147,9 @@ function notarizeAndVerifyDmg(dmgPath, environment) {
   const submissionId = parseNotarySubmission(output.stdout.trim())
   run('/usr/bin/xcrun', ['stapler', 'staple', '-v', dmgPath], 'stapler staple disk image')
   run('/usr/bin/xcrun', ['stapler', 'validate', '-v', dmgPath], 'stapler validate disk image')
-  run('/usr/bin/codesign', ['--verify', '--strict', '--verbose=4', dmgPath], 'codesign disk image')
-  assertMacSigningIdentityFacts(codesignDisplay(dmgPath), identity.macSigning, path.basename(dmgPath))
-  verifyMacSigningCertificate(dmgPath, identity.macSigning, path.basename(dmgPath))
+  run('/usr/bin/hdiutil', ['verify', dmgPath], 'hdiutil verify disk image')
+  const stapledFacts = codesignDisplay(dmgPath)
+  assertMacCdhashUnchanged(signedFacts.cdhash, stapledFacts.cdhash, subject)
   run(
     '/usr/sbin/spctl',
     ['--assess', '--type', 'open', '--context', 'context:primary-signature', '--verbose=4', dmgPath],
@@ -221,6 +244,7 @@ async function finalizeMacArtifacts(options) {
 }
 
 module.exports = {
+  assertMacCdhashUnchanged,
   finalizeMacArtifacts,
   macArtifactPaths,
   notaryAuthorizationArgs,

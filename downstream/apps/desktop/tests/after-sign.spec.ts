@@ -31,6 +31,7 @@ const {
   macCertificateExtractionArgs(prefix: string, file: string): string[]
   parseCodesignDisplay(output: string): {
     authorities: string[]
+    cdhash?: string
     identifier?: string
     runtime: boolean
     teamIdentifier?: string
@@ -44,6 +45,7 @@ const VALID_DISPLAY = [
   'Identifier=com.acosmi.dsharness.gui',
   'Format=app bundle with Mach-O thin (arm64)',
   'CodeDirectory v=20500 size=123 flags=0x10000(runtime) hashes=1+7 location=embedded',
+  'CDHash=3bf1a760bae1ba674852c487572511cc731d4fa0',
   'Authority=Developer ID Application: Zhigang Fu (Z6BDN8ZHTY)',
   'Authority=Developer ID Certification Authority',
   'Authority=Apple Root CA',
@@ -54,6 +56,7 @@ const VALID_DISPLAY = [
 describe('stable macOS signature acceptance', () => {
   it('accepts only the recorded Bundle ID, authority chain, team, runtime, and timestamp', () => {
     const facts = parseCodesignDisplay(VALID_DISPLAY)
+    expect(facts.cdhash).toBe('3bf1a760bae1ba674852c487572511cc731d4fa0')
     expect(() => assertMacSignatureFacts(
       facts,
       identity.channels.stable.bundleId,
