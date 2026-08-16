@@ -7,11 +7,13 @@ const identity = require('../../../release/identity.json') as {
   channels: { stable: { bundleId: string } }
 }
 const {
+  assertMacArchitecture,
   assertMacSigningIdentityFacts,
   assertMacSignatureFacts,
   isMachOHeader,
   parseCodesignDisplay,
 } = require('../scripts/after-sign.cjs') as {
+  assertMacArchitecture(output: string, expected: string, subject: string): void
   assertMacSigningIdentityFacts(
     facts: ReturnType<typeof parseCodesignDisplay>,
     signing: typeof identity.macSigning,
@@ -90,5 +92,13 @@ describe('stable macOS signature acceptance', () => {
     expect(isMachOHeader(Buffer.from([0xca, 0xfe, 0xba, 0xbe]))).toBe(true)
     expect(isMachOHeader(Buffer.from('#!/bin/sh\n'))).toBe(false)
     expect(isMachOHeader(Buffer.alloc(3))).toBe(false)
+  })
+
+  it('accepts only the isolated target architecture for every Mach-O object', () => {
+    expect(() => assertMacArchitecture('arm64\n', 'arm64', 'Contents/MacOS/DSH-GUI')).not.toThrow()
+    expect(() => assertMacArchitecture('x86_64 arm64\n', 'arm64', 'Contents/MacOS/DSH-GUI'))
+      .toThrow(/x86_64, arm64.*only arm64/)
+    expect(() => assertMacArchitecture('x86_64\n', 'arm64', 'Contents/MacOS/DSH-GUI'))
+      .toThrow(/expected only arm64/)
   })
 })

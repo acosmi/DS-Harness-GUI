@@ -4,7 +4,12 @@ const childProcess = require('node:child_process')
 const fs = require('node:fs')
 const path = require('node:path')
 const identity = require('../../../release/identity.json')
-const { desktopChannel, desktopReleaseMode } = require('./build-environment.cjs')
+const { desktopChannel, desktopReleaseMode, desktopTrustedSigning } = require('./build-environment.cjs')
+
+const EXPECTED_ARCHITECTURES = {
+  1: 'x86_64',
+  3: 'arm64',
+}
 
 /**
  * Parse the security facts emitted by `codesign --display --verbose=4`.
@@ -121,15 +126,44 @@ function runCodesign(args) {
   return `${result.stdout}\n${result.stderr}`
 }
 
+function runCommand(command, args, label) {
+  const result = childProcess.spawnSync(command, args, {
+    encoding: 'utf8',
+    stdio: ['ignore', 'pipe', 'pipe'],
+  })
+  if (result.error !== undefined) throw result.error
+  if (result.status !== 0) {
+    throw new Error(`${label} failed: ${(result.stderr || result.stdout).trim()}`)
+  }
+  return `${result.stdout}\n${result.stderr}`
+}
+
 /**
- * Verify the trusted stable application immediately after electron-builder signs it.
+ * Assert that one packaged Mach-O is thin for the isolated build target.
+ * @param {string} output - `lipo -archs` output.
+ * @param {string} expected - target architecture in lipo vocabulary.
+ * @param {string} subject - artifact-relative object label.
+ */
+function assertMacArchitecture(output, expected, subject) {
+  const architectures = output.trim().split(/\s+/u).filter(Boolean)
+  if (architectures.length !== 1 || architectures[0] !== expected) {
+    throw new Error(`${subject} architectures are ${architectures.join(', ') || 'empty'}, expected only ${expected}`)
+  }
+}
+
+/**
+ * Verify a trusted candidate or stable application after electron-builder notarizes it.
  * @param {{ appOutDir: string; electronPlatformName: string }} context - electron-builder hook context.
  * @returns {Promise<void>} completion after signature validation or an irrelevant-target no-op.
  */
 async function afterSign(context) {
-  if (context.electronPlatformName !== 'darwin' || desktopReleaseMode() !== 'stable') return
+  if (context.electronPlatformName !== 'darwin' || !desktopTrustedSigning(desktopReleaseMode())) return
   const channelIdentity = identity.channels[desktopChannel()]
   const appPath = path.join(context.appOutDir, `${channelIdentity.productName}.app`)
+  const expectedArchitecture = EXPECTED_ARCHITECTURES[context.arch]
+  if (expectedArchitecture === undefined) {
+    throw new Error(`signed macOS application has unsupported target architecture ${String(context.arch)}`)
+  }
   runCodesign(['--verify', '--deep', '--strict', '--verbose=4', appPath])
   const facts = parseCodesignDisplay(runCodesign(['--display', '--verbose=4', appPath]))
   assertMacSignatureFacts(facts, channelIdentity.bundleId, identity.macSigning)
@@ -139,11 +173,23 @@ async function afterSign(context) {
     const subject = path.relative(appPath, file)
     const codeFacts = parseCodesignDisplay(runCodesign(['--display', '--verbose=4', file]))
     assertMacSigningIdentityFacts(codeFacts, identity.macSigning, subject)
+    assertMacArchitecture(
+      runCommand('/usr/bin/lipo', ['-archs', file], `lipo ${subject}`),
+      expectedArchitecture,
+      subject,
+    )
   }
+  runCommand('/usr/bin/xcrun', ['stapler', 'validate', '-v', appPath], 'stapler validate application')
+  runCommand(
+    '/usr/sbin/spctl',
+    ['--assess', '--type', 'execute', '--verbose=4', appPath],
+    'Gatekeeper assess application',
+  )
   console.log(`dsh-gui signing: verified the recorded Developer ID on ${machOFiles.length} Mach-O files`)
 }
 
 module.exports = afterSign
+module.exports.assertMacArchitecture = assertMacArchitecture
 module.exports.assertMacSigningIdentityFacts = assertMacSigningIdentityFacts
 module.exports.assertMacSignatureFacts = assertMacSignatureFacts
 module.exports.collectMachOFiles = collectMachOFiles

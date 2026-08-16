@@ -6,9 +6,10 @@ import { verifyDesktopRelease } from '@acosmi/dsh-desktop-release/verify'
 
 const root = resolve(import.meta.dirname, '../../..')
 const require = createRequire(import.meta.url)
-const { desktopChannel, desktopReleaseMode } = require('./scripts/build-environment.cjs') as {
+const { desktopChannel, desktopReleaseMode, desktopTrustedSigning } = require('./scripts/build-environment.cjs') as {
   desktopChannel(): 'stable' | 'canary'
-  desktopReleaseMode(): 'development' | 'stable'
+  desktopReleaseMode(): 'development' | 'candidate' | 'stable'
+  desktopTrustedSigning(releaseMode: 'development' | 'candidate' | 'stable'): boolean
 }
 const headCommit = execFileSync('git', ['rev-parse', 'HEAD'], { cwd: root, encoding: 'utf8' }).trim()
 const productCommit = process.env.DSH_PRODUCT_COMMIT ?? headCommit
@@ -19,10 +20,12 @@ const worktreeDirty = execFileSync(
   { cwd: root, encoding: 'utf8' },
 ).trim().length > 0
 const channel = desktopChannel()
-const signing = desktopReleaseMode() === 'stable' ? 'signed' : 'development-unsigned'
-const { baseline, identity } = verifyDesktopRelease(root, { requireSignedReady: signing === 'signed' })
-if (signing === 'signed' && worktreeDirty) throw new Error('signed desktop builds require a clean worktree')
-if (signing === 'signed' && baseline.productCommit !== headCommit) {
+const releaseMode = desktopReleaseMode()
+const trustedSigning = desktopTrustedSigning(releaseMode)
+const signing = trustedSigning ? 'signed' : 'development-unsigned'
+const { baseline, identity } = verifyDesktopRelease(root, { requireSignedReady: releaseMode === 'stable' })
+if (trustedSigning && worktreeDirty) throw new Error('signed desktop builds require a clean worktree')
+if (releaseMode === 'stable' && baseline.productCommit !== headCommit) {
   throw new Error('signed desktop build must match the frozen product commit')
 }
 const channelIdentity = identity.channels[channel]

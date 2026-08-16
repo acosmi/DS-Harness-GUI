@@ -10,7 +10,7 @@ const { signAsync } = require('@electron/osx-sign')
 const asar = require('@electron/asar')
 const identity = require('../../../release/identity.json')
 const { assertAsarRuntimeClosure } = require('./runtime-closure.cjs')
-const { desktopChannel, desktopReleaseMode } = require('./build-environment.cjs')
+const { desktopChannel, desktopReleaseMode, desktopTrustedSigning } = require('./build-environment.cjs')
 
 const PLUTIL = '/usr/bin/plutil'
 const UNUSED_PERMISSION_KEYS = [
@@ -158,7 +158,7 @@ module.exports = async function afterPack(context) {
   }
   assertMacHelperIdentifiers(actualHelperIdentifiers, productName, channelIdentity.mac)
 
-  if (desktopReleaseMode() !== 'stable') {
+  if (!desktopTrustedSigning(desktopReleaseMode())) {
     await signDevelopmentApp(appPath)
   }
 }

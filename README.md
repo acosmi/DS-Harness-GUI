@@ -58,6 +58,7 @@ pnpm run typecheck         # Host-before-Client 类型检查
 pnpm run lint              # 仓库 lint
 pnpm run desktop:verify    # 校验发行账本并列出阻塞项
 pnpm run desktop:package   # 为当前宿主生成未受信的开发安装包
+pnpm run desktop:package:mac:candidate # 生成已签名/公证的 arm64 与 x64 证据
 pnpm run clean             # 清理可再生构建产物
 ```
 

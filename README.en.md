@@ -58,6 +58,7 @@ pnpm run typecheck         # Host-before-Client type checking
 pnpm run lint              # Run repository lint
 pnpm run desktop:verify    # Validate release ledgers and report blockers
 pnpm run desktop:package   # Build an untrusted development installer for this host
+pnpm run desktop:package:mac:candidate # Build signed/notarized arm64 and x64 evidence
 pnpm run clean             # Remove reproducible build outputs
 ```
 

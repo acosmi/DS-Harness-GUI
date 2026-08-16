@@ -30,6 +30,8 @@
     "build:desktop:app": "pnpm --filter @acosmi/dsh-desktop-app run build:app",
     "desktop:dev": "pnpm --filter @acosmi/dsh-desktop-app run dev",
     "desktop:package": "pnpm --filter @acosmi/dsh-desktop-app run package:development",
+    "desktop:package:mac:candidate": "pnpm --filter @acosmi/dsh-desktop-app run package:mac:candidate",
+    "desktop:package:mac:stable": "pnpm --filter @acosmi/dsh-desktop-app run package:mac:stable",
     "desktop:verify": "pnpm --filter @acosmi/dsh-desktop-release run verify",
     "clean": "tsx scripts/clean.ts",
     "change-scope": "tsx scripts/change-scope.ts",

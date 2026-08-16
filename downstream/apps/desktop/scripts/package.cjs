@@ -3,6 +3,8 @@ const fsp = require('node:fs/promises')
 const { tmpdir } = require('node:os')
 const path = require('node:path')
 const { pathToFileURL } = require('node:url')
+const identity = require('../../../release/identity.json')
+const appManifest = require('../package.json')
 const {
   assertFilesystemRuntimeClosure,
   ignoredBuildsFromPnpmOutput,
@@ -14,7 +16,13 @@ const {
   prepareTargetRuntime,
   withPreservedFile,
 } = require('./runtime-closure.cjs')
-const { desktopChannel } = require('./build-environment.cjs')
+const {
+  desktopChannel,
+  desktopMacNotarizationCredentials,
+  desktopReleaseMode,
+  desktopTrustedSigning,
+} = require('./build-environment.cjs')
+const { finalizeMacArtifacts } = require('./mac-artifacts.cjs')
 
 const APP_PACKAGE = '@acosmi/dsh-desktop-app'
 const repositoryRoot = path.resolve(__dirname, '../../../..')
@@ -141,6 +149,12 @@ async function stage(target, staging) {
 
 async function main() {
   const cli = parseCli(process.argv.slice(2))
+  const releaseMode = desktopReleaseMode()
+  const trustedSigning = desktopTrustedSigning(releaseMode)
+  if (trustedSigning && cli.targets.some(target => targetDefinitions[target].os === 'darwin')
+    && desktopMacNotarizationCredentials() === null) {
+    throw new Error('trusted macOS packaging requires complete Apple notarization credentials')
+  }
   for (const target of cli.targets) {
     const channel = desktopChannel()
     const staging = await fsp.mkdtemp(path.join(tmpdir(), `dsh-gui-desktop-staging-${channel}-${target}-`))
@@ -158,6 +172,21 @@ async function main() {
       ]
       if (cli.directoryOnly) builderArgs.push('--dir')
       await run(`electron-builder ${target}`, process.execPath, builderArgs)
+      if (!cli.directoryOnly && trustedSigning && targetDefinitions[target].os === 'darwin') {
+        const arch = targetDefinitions[target].cpu
+        const productName = identity.channels[channel].productName
+        const artifactRoot = path.join(repositoryRoot, '.artifacts', 'desktop', channel)
+        const artifactBase = `${productName}-${appManifest.version}-${arch}`
+        const result = await finalizeMacArtifacts({
+          channel,
+          dmgPath: path.join(artifactRoot, `${artifactBase}.dmg`),
+          expectedArchitecture: arch === 'arm64' ? 'arm64' : 'x86_64',
+          zipPath: path.join(artifactRoot, `${artifactBase}.zip`),
+        })
+        console.log(`dsh-gui package: ${target} DMG notarization ${result.submissionId}`)
+        console.log(`dsh-gui package: ${target} DMG SHA-256 ${result.dmgSha256}`)
+        console.log(`dsh-gui package: ${target} ZIP SHA-256 ${result.zipSha256}`)
+      }
     } finally {
       assertSafeStagingPath(tmpdir(), staging)
       await fsp.rm(staging, { recursive: true, force: true })

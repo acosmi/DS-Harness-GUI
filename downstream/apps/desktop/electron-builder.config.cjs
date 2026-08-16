@@ -1,11 +1,20 @@
 const path = require('node:path')
 const identity = require('../../release/identity.json')
-const { desktopChannel, desktopMacIdentity, desktopReleaseMode } = require('./scripts/build-environment.cjs')
+const {
+  desktopChannel,
+  desktopMacIdentity,
+  desktopMacNotarizationCredentials,
+  desktopReleaseMode,
+  desktopTrustedSigning,
+} = require('./scripts/build-environment.cjs')
 
 const channel = desktopChannel()
 const channelIdentity = identity.channels[channel]
 const releaseMode = desktopReleaseMode()
-const signedRelease = releaseMode === 'stable'
+const trustedSigning = desktopTrustedSigning(releaseMode)
+if (trustedSigning && desktopMacNotarizationCredentials() === null) {
+  throw new Error('trusted macOS packaging requires complete Apple notarization credentials')
+}
 const repositoryRoot = path.resolve(__dirname, '../../..')
 const productIcon = path.join(repositoryRoot, 'assets/branding/dsh-gui-whale-browser-logo-v6.png')
 
@@ -26,7 +35,7 @@ module.exports = {
   compression: 'maximum',
   npmRebuild: false,
   buildDependenciesFromSource: false,
-  forceCodeSigning: signedRelease,
+  forceCodeSigning: trustedSigning,
   directories: {
     output: path.resolve(__dirname, '../../../.artifacts/desktop', channel),
     buildResources: path.resolve(__dirname, 'resources'),
@@ -65,6 +74,7 @@ module.exports = {
     category: 'public.app-category.developer-tools',
     icon: productIcon,
     identity: desktopMacIdentity(identity.macSigning.identitySha1, releaseMode),
+    notarize: trustedSigning,
     target: ['dmg', 'zip'],
     hardenedRuntime: true,
     gatekeeperAssess: false,
@@ -79,7 +89,7 @@ module.exports = {
     artifactName: '${productName}-${version}-${arch}.${ext}',
   },
   dmg: {
-    sign: signedRelease,
+    sign: trustedSigning,
   },
   win: {
     icon: productIcon,
