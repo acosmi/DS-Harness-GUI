@@ -1,0 +1,136 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://dshgui.com/schemas/identity.schema.json",
+  "title": "DSH-GUI product identity ledger",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "productName",
+    "displayNameZh",
+    "productIdentifier",
+    "repository",
+    "description",
+    "disclaimer",
+    "publisher",
+    "macSigning",
+    "channels"
+  ],
+  "properties": {
+    "$schema": { "type": "string" },
+    "schemaVersion": { "const": 1 },
+    "productName": { "const": "DSH-GUI" },
+    "displayNameZh": { "const": "DeepSeek Harness 桌面端" },
+    "productIdentifier": { "const": "com.acosmi.dsharness.gui" },
+    "repository": { "const": "https://github.com/acosmi/DS-HarnesshGUI" },
+    "description": { "type": "string", "minLength": 1 },
+    "disclaimer": { "type": "string", "minLength": 1 },
+    "publisher": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["displayName", "legalEntity"],
+      "properties": {
+        "displayName": { "const": "Acosmi" },
+        "legalEntity": { "type": ["string", "null"] }
+      }
+    },
+    "macSigning": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "identitySha1",
+        "commonName",
+        "teamId",
+        "certificateId",
+        "serialNumber",
+        "validFrom",
+        "validUntil",
+        "authorityChain"
+      ],
+      "properties": {
+        "identitySha1": { "const": "A6616C59EA24F8DE1D97ECC8081AE64E3D7D6F61" },
+        "commonName": { "const": "Developer ID Application: Zhigang Fu (Z6BDN8ZHTY)" },
+        "teamId": { "const": "Z6BDN8ZHTY" },
+        "certificateId": { "const": "4M4HCHYCT2" },
+        "serialNumber": { "const": "02821B35BD6AE31E26DF5F3118B975B5" },
+        "validFrom": { "type": "string", "const": "2026-08-15", "format": "date" },
+        "validUntil": { "type": "string", "const": "2031-08-16", "format": "date" },
+        "authorityChain": {
+          "type": "array",
+          "prefixItems": [
+            { "const": "Developer ID Application: Zhigang Fu (Z6BDN8ZHTY)" },
+            { "const": "Developer ID Certification Authority" },
+            { "const": "Apple Root CA" }
+          ],
+          "minItems": 3,
+          "maxItems": 3
+        }
+      }
+    },
+    "channels": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["stable", "canary"],
+      "properties": {
+        "stable": { "$ref": "#/$defs/channel" },
+        "canary": { "$ref": "#/$defs/channel" }
+      }
+    }
+  },
+  "$defs": {
+    "channel": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "productName",
+        "bundleId",
+        "mac",
+        "windows",
+        "protocol",
+        "userDataDirectory",
+        "harnessDirectory",
+        "vaultFilename",
+        "profileFilename",
+        "secretNamespace",
+        "updateFeedId"
+      ],
+      "properties": {
+        "productName": { "type": "string", "minLength": 1 },
+        "bundleId": { "type": "string", "pattern": "^com\\.acosmi\\.dsharness\\.gui(?:\\.canary)?$" },
+        "mac": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["helperBundleId", "helperRendererBundleId", "helperPluginBundleId", "helperGpuBundleId", "helperEhBundleId"],
+          "properties": {
+            "helperBundleId": { "type": "string", "minLength": 1 },
+            "helperRendererBundleId": { "type": "string", "minLength": 1 },
+            "helperPluginBundleId": { "type": "string", "minLength": 1 },
+            "helperGpuBundleId": { "type": "string", "minLength": 1 },
+            "helperEhBundleId": { "type": "string", "minLength": 1 }
+          }
+        },
+        "windows": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["applicationId", "aumid", "executableName", "installerGuid", "startMenuShortcut", "uninstallRegistryKey", "updateFeedId"],
+          "properties": {
+            "applicationId": { "type": "string", "minLength": 1 },
+            "aumid": { "type": "string", "minLength": 1 },
+            "executableName": { "type": "string", "minLength": 1 },
+            "installerGuid": { "type": "string", "pattern": "^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$" },
+            "startMenuShortcut": { "type": "string", "minLength": 1 },
+            "uninstallRegistryKey": { "type": "string", "minLength": 1 },
+            "updateFeedId": { "type": "string", "minLength": 1 }
+          }
+        },
+        "protocol": { "type": "string", "pattern": "^[a-z][a-z0-9-]+$" },
+        "userDataDirectory": { "type": "string", "minLength": 1 },
+        "harnessDirectory": { "const": "harness" },
+        "vaultFilename": { "const": "secrets.v2.json" },
+        "profileFilename": { "const": "profile.v1.json" },
+        "secretNamespace": { "type": "string", "minLength": 1 },
+        "updateFeedId": { "type": "string", "minLength": 1 }
+      }
+    }
+  }
+}

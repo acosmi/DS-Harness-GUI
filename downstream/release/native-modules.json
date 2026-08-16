@@ -1,0 +1,44 @@
+{
+  "$schema": "./native-modules.schema.json",
+  "schemaVersion": 1,
+  "electronAbi": "148",
+  "napi": "10",
+  "modules": [
+    {
+      "name": "node-pty",
+      "version": "1.1.0",
+      "purpose": "PTY-backed local subprocess sessions",
+      "targets": ["darwin-arm64", "darwin-x64", "win32-x64"],
+      "packaging": "asar-unpack-prebuilds"
+    },
+    {
+      "name": "sharp",
+      "version": "0.35.3",
+      "purpose": "local attachment image processing",
+      "targets": ["darwin-arm64", "darwin-x64", "win32-x64"],
+      "packaging": "asar-unpack-platform-optional-package"
+    },
+    {
+      "name": "koffi",
+      "version": "3.1.1",
+      "purpose": "platform filesystem, persistence and Windows ACL bindings",
+      "targets": ["darwin-arm64", "darwin-x64", "win32-x64"],
+      "packaging": "asar-unpack-platform-optional-package"
+    },
+    {
+      "name": "node-addon-require-builtin",
+      "version": "0.1.4",
+      "purpose": "vendored Loader built-in module resolution",
+      "targets": ["darwin-arm64", "darwin-x64", "win32-x64"],
+      "packaging": "asar-unpack-platform-optional-package"
+    }
+  ],
+  "excluded": [
+    "@deepseek-ai/node-addon-landlock-run",
+    "fsevents",
+    "oxlint native bindings",
+    "rolldown native bindings",
+    "rollup native bindings",
+    "Electron build-tool native bindings"
+  ]
+}

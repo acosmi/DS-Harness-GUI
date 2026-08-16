@@ -1,0 +1,170 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://dshgui.com/schemas/upstream-baseline.schema.json",
+  "title": "DSH-GUI upstream baseline",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "product",
+    "upstream",
+    "acosmiSdk",
+    "runtime",
+    "lockfile",
+    "inventories",
+    "synchronizedAt",
+    "compatibility",
+    "productCommit",
+    "genericPatches",
+    "releaseReadiness"
+  ],
+  "properties": {
+    "$schema": { "type": "string" },
+    "schemaVersion": { "const": 1 },
+    "product": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "identifier", "repository"],
+      "properties": {
+        "name": { "const": "DSH-GUI" },
+        "identifier": { "const": "com.acosmi.dsharness.gui" },
+        "repository": { "const": "https://github.com/acosmi/DS-HarnesshGUI" }
+      }
+    },
+    "upstream": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["repository", "commit"],
+      "properties": {
+        "repository": { "const": "https://github.com/deepseek-ai/deepseek-harness" },
+        "commit": { "$ref": "#/$defs/sha1" }
+      }
+    },
+    "acosmiSdk": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["package", "repository", "registryTag", "version", "integrity", "shasum", "publishedGitHead", "attestationUrl", "provenancePredicateType", "registrySignatureKeyId", "oauthState", "tokenStoreFailurePropagation", "authenticatedAccountSubject", "openAiFinishReasonPreservation"],
+      "properties": {
+        "package": { "const": "@acosmi/sdk-ts" },
+        "repository": { "const": "https://github.com/acosmi/sdk-ts" },
+        "registryTag": { "const": "latest" },
+        "version": { "$ref": "#/$defs/semver" },
+        "integrity": { "type": "string", "pattern": "^sha512-.+$" },
+        "shasum": { "$ref": "#/$defs/sha1" },
+        "publishedGitHead": { "$ref": "#/$defs/sha1" },
+        "attestationUrl": { "type": "string", "format": "uri", "pattern": "^https://registry\\.npmjs\\.org/-/npm/v1/attestations/" },
+        "provenancePredicateType": { "const": "https://slsa.dev/provenance/v1" },
+        "registrySignatureKeyId": { "type": "string", "pattern": "^SHA256:.+$" },
+        "oauthState": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["publishedPackageCapable", "upstreamFixCommit", "patchPath", "patchSha256"],
+          "properties": {
+            "publishedPackageCapable": { "type": "boolean" },
+            "upstreamFixCommit": { "$ref": "#/$defs/sha1" },
+            "patchPath": { "type": ["string", "null"] },
+            "patchSha256": { "anyOf": [{ "$ref": "#/$defs/sha256" }, { "type": "null" }] }
+          }
+        },
+        "tokenStoreFailurePropagation": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["publishedPackageCapable"],
+          "properties": {
+            "publishedPackageCapable": { "type": "boolean" }
+          }
+        },
+        "authenticatedAccountSubject": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["publishedPackageCapable"],
+          "properties": {
+            "publishedPackageCapable": { "type": "boolean" }
+          }
+        },
+        "openAiFinishReasonPreservation": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["publishedPackageCapable"],
+          "properties": {
+            "publishedPackageCapable": { "type": "boolean" }
+          }
+        }
+      }
+    },
+    "runtime": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["electron", "node", "chromium", "v8", "modules", "napi", "electronBuilder"],
+      "properties": {
+        "electron": { "const": "43.4.0" },
+        "node": { "const": "24.18.1" },
+        "chromium": { "const": "150.0.7871.224" },
+        "v8": { "const": "15.0.245.28-electron.0" },
+        "modules": { "const": "148" },
+        "napi": { "const": "10" },
+        "electronBuilder": { "const": "26.15.3" }
+      }
+    },
+    "lockfile": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["path", "sha256"],
+      "properties": {
+        "path": { "const": "pnpm-lock.yaml" },
+        "sha256": { "$ref": "#/$defs/sha256" }
+      }
+    },
+    "inventories": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["identity", "supportMatrix", "nativeModules", "externalInputs", "responsibilities"],
+      "properties": {
+        "identity": { "const": "downstream/release/identity.json" },
+        "supportMatrix": { "const": "downstream/release/support-matrix.json" },
+        "nativeModules": { "const": "downstream/release/native-modules.json" },
+        "externalInputs": { "const": "downstream/release/external-inputs.json" },
+        "responsibilities": { "const": "downstream/release/responsibilities.json" }
+      }
+    },
+    "synchronizedAt": { "type": "string", "format": "date" },
+    "compatibility": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["status", "verifiedAt", "evidence"],
+      "properties": {
+        "status": { "enum": ["implementation-in-progress", "passed", "failed"] },
+        "verifiedAt": { "type": ["string", "null"], "format": "date-time" },
+        "evidence": { "type": "array", "items": { "type": "string", "minLength": 1 } }
+      }
+    },
+    "productCommit": { "anyOf": [{ "$ref": "#/$defs/sha1" }, { "type": "null" }] },
+    "genericPatches": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["path", "purpose"],
+        "properties": {
+          "path": { "type": "string", "minLength": 1 },
+          "purpose": { "type": "string", "minLength": 1 }
+        }
+      }
+    },
+    "releaseReadiness": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["stableBlocked", "blockers"],
+      "properties": {
+        "stableBlocked": { "type": "boolean" },
+        "blockers": { "type": "array", "items": { "type": "string", "minLength": 1 }, "uniqueItems": true }
+      }
+    }
+  },
+  "$defs": {
+    "sha1": { "type": "string", "pattern": "^[0-9a-f]{40}$" },
+    "sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "semver": { "type": "string", "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$" }
+  }
+}

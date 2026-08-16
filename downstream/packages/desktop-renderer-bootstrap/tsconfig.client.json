@@ -1,0 +1,15 @@
+{
+  "extends": "../../../tsconfig.base.client.json",
+  "compilerOptions": {
+    "rootDir": "src",
+    "outDir": "lib/types",
+    "tsBuildInfoFile": "lib/tsconfig.client.tsbuildinfo"
+  },
+  "files": ["src/client.ts"],
+  "references": [
+    { "path": "../desktop-carrier-electron/tsconfig.client.json" },
+    { "path": "../../../packages/client/connection/tsconfig.client.json" },
+    { "path": "../../../packages/client/modules" },
+    { "path": "../../../packages/client/web" }
+  ]
+}

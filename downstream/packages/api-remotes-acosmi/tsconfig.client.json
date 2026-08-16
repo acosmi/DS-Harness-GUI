@@ -1,0 +1,14 @@
+{
+  "extends": "../../../tsconfig.base.client.json",
+  "compilerOptions": {
+    "rootDir": "src/client",
+    "outDir": "lib/types/client"
+  },
+  "include": ["src/client"],
+  "references": [
+    { "path": "../../../vendor/cordis" },
+    { "path": "../../../packages/typert/protocol" },
+    { "path": "../../../packages/api/remotes/tsconfig.client.json" },
+    { "path": "../account-acosmi" }
+  ]
+}

@@ -1,0 +1,14 @@
+{
+  "extends": "../../../tsconfig.base.json",
+  "compilerOptions": {
+    "rootDir": "src",
+    "outDir": "lib/types",
+    "tsBuildInfoFile": "lib/tsconfig.host.tsbuildinfo"
+  },
+  "files": ["src/index.ts", "src/protocol.ts"],
+  "references": [
+    { "path": "../../../vendor/cordis" },
+    { "path": "../../../packages/client/connection/tsconfig.host.json" },
+    { "path": "../../../packages/host/apiproxy" }
+  ]
+}

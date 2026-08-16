@@ -1,0 +1,29 @@
+{
+  "$schema": "./support-matrix.schema.json",
+  "schemaVersion": 1,
+  "runtime": "Electron 43.4.0",
+  "targets": [
+    {
+      "platform": "darwin",
+      "arch": "arm64",
+      "minimumOs": "macOS 12",
+      "buildRunner": "macOS arm64",
+      "localEvidence": "development-app-runtime-closure-utility-import-ipc-containment-and-isolated-launch-quit-2026-08-15"
+    },
+    {
+      "platform": "darwin",
+      "arch": "x64",
+      "minimumOs": "macOS 12",
+      "buildRunner": "macOS x64",
+      "localEvidence": "requires-external-runner"
+    },
+    {
+      "platform": "win32",
+      "arch": "x64",
+      "minimumOs": "Windows 10",
+      "buildRunner": "Windows x64",
+      "localEvidence": "requires-external-runner"
+    }
+  ],
+  "unsupported": ["linux", "win32-arm64", "darwin-ia32"]
+}

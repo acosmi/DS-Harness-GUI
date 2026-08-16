@@ -1,0 +1,37 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" role="img" aria-labelledby="title desc">
+  <title id="title">DeepSeek Harness GUI logo mark</title>
+  <desc id="desc">A minimal three-pane agent workspace with an abstract whale body and a raised tail in the upper-right corner.</desc>
+  <path
+    fill="#3A4B7A"
+    d="M164 470
+       C260 440 400 438 568 448
+       C626 452 662 468 700 500
+       L784 548
+       C834 568 858 610 858 660
+       V776
+       C858 828 816 870 764 870
+       H168
+       C116 870 74 828 74 776
+       V590
+       C74 536 108 492 164 470Z" />
+  <path
+    fill="#3A4B7A"
+    d="M590 456
+       C680 470 750 430 782 372
+       C802 336 802 310 786 286
+       C754 272 720 240 714 194
+       C768 208 812 230 840 262
+       C874 224 920 202 972 210
+       C950 268 908 304 856 316
+       C830 350 818 388 820 430
+       C822 472 834 516 814 554
+       L700 560
+       C676 520 638 478 590 456Z" />
+  <rect x="122" y="558" width="168" height="244" rx="42" fill="#E5EBFF" />
+  <rect x="314" y="536" width="334" height="286" rx="42" fill="#E5EBFF" />
+  <rect x="672" y="570" width="134" height="224" rx="38" fill="#E5EBFF" />
+  <rect x="184" y="614" width="44" height="132" rx="22" fill="#3A4B7A" />
+  <rect x="356" y="588" width="132" height="40" rx="20" fill="#3A4B7A" />
+  <rect x="356" y="742" width="250" height="40" rx="20" fill="#3A4B7A" />
+  <rect x="708" y="664" width="62" height="22" rx="11" fill="#3A4B7A" />
+</svg>

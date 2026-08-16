@@ -1,0 +1,21 @@
+{
+  "$schema": "./external-inputs.schema.json",
+  "schemaVersion": 1,
+  "inputs": [
+    { "id": "published-state-capable-sdk", "status": "ready", "releaseBlocking": true, "ownerRole": "sdk", "fallback": "The pinned registry package @acosmi/sdk-ts@2.17.0 supplies native state validation; the local dist patch has been removed." },
+    { "id": "acosmi-sdk-token-store-failure-propagation", "status": "blocked", "releaseBlocking": true, "ownerRole": "sdk", "fallback": "Keep signed production login blocked because refresh rotation and invalid-token cleanup can still swallow secure-store failures." },
+    { "id": "acosmi-sdk-authenticated-account-subject", "status": "blocked", "releaseBlocking": true, "ownerRole": "sdk", "fallback": "Keep account-current explicitly provisional; do not claim subject-partitioned credentials or safe account switching." },
+    { "id": "acosmi-sdk-openai-finish-reason-preservation", "status": "blocked", "releaseBlocking": true, "ownerRole": "sdk", "fallback": "Keep stable blocked because SDK 2.17.0 converts filtered or unknown OpenAI stream finish reasons into a normal end_turn before DSH can classify them." },
+    { "id": "oauth-production-client-and-test-account", "status": "blocked", "releaseBlocking": true, "ownerRole": "identity-billing", "fallback": "Use local OAuth verification only; do not claim production end-to-end approval." },
+    { "id": "acosmi-managed-model-web-search-deduplication", "status": "ready", "releaseBlocking": true, "ownerRole": "support-incident", "fallback": "The Nexus client-name precedence repair is deployed; DSH still retains TOOL_NAME_COLLISION as a defensive provider error mapping." },
+    { "id": "official-deepseek-api-key-real-service-validation", "status": "blocked", "releaseBlocking": true, "ownerRole": "qa-accessibility", "fallback": "Keep the official API-key route separate and do not claim real-service approval until the in-app path is verified." },
+    { "id": "versioned-quota-comparison-claim", "status": "blocked", "releaseBlocking": false, "ownerRole": "identity-billing", "fallback": "Show only neutral membership copy and no numeric multiplier." },
+    { "id": "apple-signing-and-notary", "status": "blocked", "releaseBlocking": true, "ownerRole": "release", "fallback": "The Developer ID Application identity is configured and locally validated; keep stable blocked until notarization credentials and final signed, notarized, stapled arm64/x64 artifacts pass verification. CI or another Mac also requires a separately protected P12." },
+    { "id": "windows-authenticode", "status": "blocked", "releaseBlocking": true, "ownerRole": "release", "fallback": "Generate development/unsigned Windows artifacts only." },
+    { "id": "signed-update-origin-and-keys", "status": "blocked", "releaseBlocking": true, "ownerRole": "release", "fallback": "Keep the updater disabled." },
+    { "id": "legal-brand-privacy-terms-support-approval", "status": "blocked", "releaseBlocking": true, "ownerRole": "legal-brand", "fallback": "Do not publish a stable release." },
+    { "id": "product-repository-write-and-protection", "status": "blocked", "releaseBlocking": false, "ownerRole": "github-admin", "fallback": "Push reviewed source only; keep repository governance incomplete until the default branch and its protection rules are configured." },
+    { "id": "macos-x64-final-package-matrix", "status": "blocked", "releaseBlocking": true, "ownerRole": "qa-accessibility", "fallback": "Do not claim macOS x64 validation." },
+    { "id": "windows-x64-final-package-matrix", "status": "blocked", "releaseBlocking": true, "ownerRole": "qa-accessibility", "fallback": "Do not claim Windows x64 validation." }
+  ]
+}

@@ -1,0 +1,7 @@
+{
+  "steps": [
+    { "op": "initialize" },
+    { "op": "newSession" },
+    { "op": "prompt", "text": "Verify Kimi K3 parallel tool continuation and managed search replay." }
+  ]
+}

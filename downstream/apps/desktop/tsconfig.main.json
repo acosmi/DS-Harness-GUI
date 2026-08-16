@@ -1,0 +1,15 @@
+{
+  "extends": "../../../tsconfig.base.json",
+  "compilerOptions": {
+    "composite": false,
+    "declaration": false,
+    "declarationMap": false,
+    "sourceMap": false,
+    "allowImportingTsExtensions": false,
+    "rewriteRelativeImportExtensions": false
+  },
+  "files": ["src/globals.d.ts", "src/main.ts", "src/preload.ts", "src/utility.ts"],
+  "references": [
+    { "path": "../../packages/desktop-runtime-electron" }
+  ]
+}

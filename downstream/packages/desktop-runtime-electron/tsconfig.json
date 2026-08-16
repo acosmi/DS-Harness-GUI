@@ -1,0 +1,17 @@
+{
+  "extends": "../../../tsconfig.base.json",
+  "compilerOptions": {
+    "rootDir": "src",
+    "outDir": "lib/types"
+  },
+  "include": ["src"],
+  "references": [
+    { "path": "../account-acosmi" },
+    { "path": "../desktop-carrier-electron/tsconfig.host.json" },
+    { "path": "../desktop-secrets" },
+    { "path": "../desktop-directory-picker" },
+    { "path": "../desktop-update" },
+    { "path": "../../../packages/boot/app-boot" },
+    { "path": "../../../packages/host/apiproxy" }
+  ]
+}

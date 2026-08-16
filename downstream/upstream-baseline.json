@@ -1,0 +1,113 @@
+{
+  "$schema": "./release/upstream-baseline.schema.json",
+  "schemaVersion": 1,
+  "product": {
+    "name": "DSH-GUI",
+    "identifier": "com.acosmi.dsharness.gui",
+    "repository": "https://github.com/acosmi/DS-HarnesshGUI"
+  },
+  "upstream": {
+    "repository": "https://github.com/deepseek-ai/deepseek-harness",
+    "commit": "47f943859bef60e4160492346772ded9b24f765a"
+  },
+  "acosmiSdk": {
+    "package": "@acosmi/sdk-ts",
+    "repository": "https://github.com/acosmi/sdk-ts",
+    "registryTag": "latest",
+    "version": "2.17.0",
+    "integrity": "sha512-8fvkhaSFlAy3YN13Zt9QH/u8u28Khpl4V63CLa/gGpU4Fhy1RzUIGC10TPctRdQkWG5pXSZdFpRYiu1jUBrgEA==",
+    "shasum": "71efa7f66a39e06dfb40926f450990dac3ad9cf2",
+    "publishedGitHead": "6139b2d1b24cb2da3d4f925ed17ad91f3dc4c81d",
+    "attestationUrl": "https://registry.npmjs.org/-/npm/v1/attestations/@acosmi%2fsdk-ts@2.17.0",
+    "provenancePredicateType": "https://slsa.dev/provenance/v1",
+    "registrySignatureKeyId": "SHA256:DhQ8wR5APBvFHLF/+Tc+AYvPOdTpcIDqOhxsBHRwC7U",
+    "oauthState": {
+      "publishedPackageCapable": true,
+      "upstreamFixCommit": "6139b2d1b24cb2da3d4f925ed17ad91f3dc4c81d",
+      "patchPath": null,
+      "patchSha256": null
+    },
+    "tokenStoreFailurePropagation": {
+      "publishedPackageCapable": false
+    },
+    "authenticatedAccountSubject": {
+      "publishedPackageCapable": false
+    },
+    "openAiFinishReasonPreservation": {
+      "publishedPackageCapable": false
+    }
+  },
+  "runtime": {
+    "electron": "43.4.0",
+    "node": "24.18.1",
+    "chromium": "150.0.7871.224",
+    "v8": "15.0.245.28-electron.0",
+    "modules": "148",
+    "napi": "10",
+    "electronBuilder": "26.15.3"
+  },
+  "lockfile": {
+    "path": "pnpm-lock.yaml",
+    "sha256": "f625161a8bef9b2756691e883a48425a3b76e87b11aa16df8a5811181576464a"
+  },
+  "inventories": {
+    "identity": "downstream/release/identity.json",
+    "supportMatrix": "downstream/release/support-matrix.json",
+    "nativeModules": "downstream/release/native-modules.json",
+    "externalInputs": "downstream/release/external-inputs.json",
+    "responsibilities": "downstream/release/responsibilities.json"
+  },
+  "synchronizedAt": "2026-08-15",
+  "compatibility": {
+    "status": "implementation-in-progress",
+    "verifiedAt": null,
+    "evidence": []
+  },
+  "productCommit": null,
+  "genericPatches": [
+    {
+      "path": "packages/client/connection",
+      "purpose": "Allow a platform bootstrap to inject the API/RPC carrier while retaining the upstream ConnectionController."
+    },
+    {
+      "path": "packages/typert/generator",
+      "purpose": "Let aggregate compiler faces discover private product packages under the generic downstream package root."
+    },
+    {
+      "path": "packages/client/tsdown.client.ts",
+      "purpose": "Allow a private product bundle to name generated wire-only modules that are safe to inline without expanding the shared runtime table."
+    },
+    {
+      "path": "packages/client/ui-sidebar",
+      "purpose": "Allow product bundles to replace both expanded and collapsed sidebar brand visuals through one variant-aware root-scoped slot while retaining the upstream defaults and shell behavior."
+    },
+    {
+      "path": "packages/client/ui-conversation",
+      "purpose": "Allow product bundles to replace the blank-session hero mark through an optional root-scoped slot while retaining the upstream fish fallback and hero layout."
+    },
+    {
+      "path": "vendor/loader/src/config/utils.ts",
+      "purpose": "Create the JavaScript expression evaluator only when a Node configuration uses an expression so expression-free browser bundles can enforce CSP without unsafe-eval."
+    },
+    {
+      "path": "workspace-integration",
+      "purpose": "Register downstream workspaces, compiler faces, build entries, test discovery and the pinned SDK dependency without changing upstream product behavior."
+    }
+  ],
+  "releaseReadiness": {
+    "stableBlocked": true,
+    "blockers": [
+      "acosmi-sdk-token-store-failure-propagation",
+      "acosmi-sdk-authenticated-account-subject",
+      "acosmi-sdk-openai-finish-reason-preservation",
+      "oauth-production-client-and-test-account",
+      "official-deepseek-api-key-real-service-validation",
+      "apple-signing-and-notary",
+      "windows-authenticode",
+      "signed-update-origin-and-keys",
+      "legal-brand-privacy-terms-support-approval",
+      "macos-x64-final-package-matrix",
+      "windows-x64-final-package-matrix"
+    ]
+  }
+}

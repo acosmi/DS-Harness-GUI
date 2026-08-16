@@ -1,0 +1,7 @@
+# This authored snapshot fixture is also directly runnable for local diagnosis.
+# Replay swaps this basename for cordis.snapshot.yml; record mode follows this
+# include and reaches the identical deterministic composition.
+- id: fixture
+  name: '@deepseek-ai/cordis-plugin-include'
+  config:
+    path: ./cordis.snapshot.yml

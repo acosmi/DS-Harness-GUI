@@ -1,0 +1,60 @@
+.panel {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  width: min(520px, calc(100vw - 40px));
+  padding: 28px;
+  border: 1px solid var(--dsw-alias-line-border-subtle);
+  border-radius: 24px;
+  background: var(--dsw-alias-bg-layer-1);
+  box-shadow: var(--dsw-shadow-lv3);
+  color: var(--dsw-alias-label-primary);
+}
+
+.eyebrow {
+  margin: 0;
+  color: var(--dsw-alias-brand-primary);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.title,
+.description,
+.notice,
+.disclaimer {
+  margin: 0;
+}
+
+.title {
+  font-size: 28px;
+  line-height: 36px;
+}
+
+.description,
+.notice,
+.disclaimer {
+  color: var(--dsw-alias-label-secondary);
+  font-size: 14px;
+  line-height: 22px;
+}
+
+.options {
+  display: grid;
+  gap: 10px;
+}
+
+.options button {
+  width: 100%;
+  justify-content: center;
+}
+
+.error {
+  color: var(--dsw-alias-state-error-primary);
+  font-size: 13px;
+}
+
+.disclaimer {
+  font-size: 12px;
+}

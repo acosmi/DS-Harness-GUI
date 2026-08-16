@@ -1,0 +1,53 @@
+/** Desktop About and update copy. */
+
+export const zh = {
+  nav: '关于',
+  title: '关于 DSH-GUI',
+  productVersion: '产品版本',
+  channel: '更新渠道',
+  upstream: '上游版本',
+  productCommit: '产品版本标识',
+  sdk: 'Acosmi SDK',
+  electron: 'Electron',
+  signing: '签名状态',
+  secretStorage: '密钥存储',
+  update: '软件更新',
+  check: '检查更新',
+  checking: '正在检查…',
+  loading: '正在读取产品信息…',
+  loadFailed: '无法读取产品信息。',
+  'update.disabled': '此构建未配置更新源。',
+  'update.current': '当前已是最新版本。',
+  'update.available': '发现新版本 {version}。',
+  'update.error': '暂时无法检查更新。',
+  'model.deepseekChecking': '正在检查 DeepSeek API Key 配置…',
+  'model.deepseekMissing': 'DeepSeek API 未配置。请到“设置 → 模型”中配置 API Key，或选择已登录账户下的 Acosmi 模型。',
+  'model.deepseekUnavailable': '无法确认 DeepSeek API Key 配置。请到“设置 → 模型”检查，或选择 Acosmi 会员模型。',
+} satisfies Record<string, string>
+
+export type DesktopUiKey = keyof typeof zh
+
+export const en = {
+  nav: 'About',
+  title: 'About DSH-GUI',
+  productVersion: 'Product version',
+  channel: 'Update channel',
+  upstream: 'Upstream revision',
+  productCommit: 'Product revision',
+  sdk: 'Acosmi SDK',
+  electron: 'Electron',
+  signing: 'Signing status',
+  secretStorage: 'Secret storage',
+  update: 'Software update',
+  check: 'Check for updates',
+  checking: 'Checking…',
+  loading: 'Loading product information…',
+  loadFailed: 'Product information is unavailable.',
+  'update.disabled': 'This build has no update feed configured.',
+  'update.current': 'This is the latest version.',
+  'update.available': 'Version {version} is available.',
+  'update.error': 'Updates cannot be checked right now.',
+  'model.deepseekChecking': 'Checking the DeepSeek API key configuration…',
+  'model.deepseekMissing': 'DeepSeek API is not configured. Add its API key in Settings → Models, or choose an Acosmi account model.',
+  'model.deepseekUnavailable': 'The DeepSeek API key status is unavailable. Check Settings → Models, or choose an Acosmi account model.',
+} satisfies Record<DesktopUiKey, string>

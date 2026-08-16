@@ -1,0 +1,15 @@
+{
+  "extends": "../../../tsconfig.base.client.json",
+  "compilerOptions": {
+    "composite": false,
+    "declaration": false,
+    "declarationMap": false,
+    "sourceMap": false,
+    "allowImportingTsExtensions": false,
+    "rewriteRelativeImportExtensions": false
+  },
+  "files": ["src/globals.d.ts", "src/renderer.ts"],
+  "references": [
+    { "path": "../../packages/desktop-renderer-bootstrap/tsconfig.client.json" }
+  ]
+}

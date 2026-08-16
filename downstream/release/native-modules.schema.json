@@ -1,0 +1,40 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://dshgui.com/schemas/native-modules.schema.json",
+  "title": "DSH-GUI native-module inventory",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "electronAbi", "napi", "modules", "excluded"],
+  "properties": {
+    "$schema": { "type": "string" },
+    "schemaVersion": { "const": 1 },
+    "electronAbi": { "type": "string", "pattern": "^[0-9]+$" },
+    "napi": { "type": "string", "pattern": "^[0-9]+$" },
+    "modules": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["name", "version", "purpose", "targets", "packaging"],
+        "properties": {
+          "name": { "type": "string", "minLength": 1 },
+          "version": { "type": "string", "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$" },
+          "purpose": { "type": "string", "minLength": 1 },
+          "targets": {
+            "type": "array",
+            "minItems": 1,
+            "uniqueItems": true,
+            "items": { "enum": ["darwin-arm64", "darwin-x64", "win32-x64"] }
+          },
+          "packaging": { "type": "string", "minLength": 1 }
+        }
+      }
+    },
+    "excluded": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": { "type": "string", "minLength": 1 }
+    }
+  }
+}

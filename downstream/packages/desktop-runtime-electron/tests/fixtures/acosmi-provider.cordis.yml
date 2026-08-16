@@ -1,0 +1,23 @@
+- id: llm
+  name: '@deepseek-ai/dsh-llm'
+
+- id: account-acosmi
+  name: '@acosmi/dsh-account-acosmi'
+  config:
+    tokenKey: com.acosmi.dsharness.gui:stable:loader-test
+    loginEnabled: true
+    gatewayBaseUrl: https://acosmi.com
+    oauthAppName: DSH-GUI
+    loginTimeoutMs: 30000
+    logoutTimeoutMs: 1000
+    refreshIntervalMs: 300000
+    refreshJitterMs: 0
+    refreshTimeoutMs: 30000
+    projectionPollIntervalMs: 60000
+    productVersion: 0.1.0-dev.1
+
+- id: llm-acosmi
+  name: '@acosmi/dsh-llm-acosmi'
+  config:
+    maxTokens: 8192
+    streamIdleTimeoutMs: 120000

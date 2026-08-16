@@ -1,0 +1,80 @@
+# Desktop replaces browser serving and transport while retaining the real
+# Harness Host, API gateway, Remote services, sessions, tools and client roster.
+
+- id: hmr
+  disabled: true
+
+- id: credentials
+  disabled: true
+
+- id: session-telemetry-otel
+  disabled: true
+
+- id: directory-picker
+  disabled: true
+
+- id: web-startup
+  disabled: true
+
+- id: webserver
+  disabled: true
+
+- id: web-runtime
+  disabled: true
+
+- id: client-hmr
+  disabled: true
+
+- id: modules
+  disabled: true
+
+- id: connection
+  disabled: true
+
+- id: llm-deepseek
+  config:
+    models:
+      - id: deepseek-v4-flash
+        name: DeepSeek API · DeepSeek-V4-Flash
+      - id: deepseek-v4-pro
+        name: DeepSeek API · DeepSeek-V4-Pro
+
+- insert:
+    - id: desktop-connection
+      name: '@acosmi/dsh-desktop-carrier-electron'
+
+    - id: desktop-credentials
+      name: '@acosmi/dsh-desktop-secrets'
+
+    - id: desktop-directory-picker
+      name: '@acosmi/dsh-desktop-directory-picker'
+
+    - id: account-acosmi
+      name: '@acosmi/dsh-account-acosmi'
+      config:
+        tokenKey: com.acosmi.dsharness.gui:stable:profile-default:https://acosmi.com:account-current
+        loginEnabled: true
+        gatewayBaseUrl: https://acosmi.com
+        oauthAppName: DSH-GUI
+        loginTimeoutMs: 180000
+        logoutTimeoutMs: 10000
+        refreshIntervalMs: 300000
+        refreshJitterMs: 30000
+        refreshTimeoutMs: 30000
+        projectionPollIntervalMs: 60000
+        productVersion: 0.1.0-dev.1
+
+    - id: llm-acosmi
+      name: '@acosmi/dsh-llm-acosmi'
+      config:
+        maxTokens: 8192
+        streamIdleTimeoutMs: 120000
+
+    - id: api-remotes-acosmi
+      name: '@acosmi/dsh-api-remotes-acosmi'
+
+    - id: ui-acosmi-account
+      name: '@acosmi/dsh-ui-acosmi-account'
+
+    - id: ui-desktop
+      name: '@acosmi/dsh-ui-desktop'

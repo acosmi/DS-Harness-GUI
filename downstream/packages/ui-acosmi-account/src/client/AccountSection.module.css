@@ -1,0 +1,135 @@
+.page {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  width: 100%;
+  color: var(--dsw-alias-label-primary);
+}
+
+.heading {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.heading h2,
+.heading p,
+.card h3,
+.card p {
+  margin: 0;
+}
+
+.heading h2 {
+  font-size: 20px;
+  line-height: 28px;
+}
+
+.heading p,
+.muted,
+.disclaimer {
+  color: var(--dsw-alias-label-secondary);
+  font-size: 13px;
+  line-height: 20px;
+}
+
+.notice {
+  padding: 12px 14px;
+  border: 1px solid var(--dsw-alias-state-warning-primary);
+  border-radius: 12px;
+  color: var(--dsw-alias-label-secondary);
+  background: color-mix(in srgb, var(--dsw-alias-state-warning-primary) 10%, transparent);
+  font-size: 13px;
+  line-height: 20px;
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.card {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 0;
+  padding: 16px;
+  border: 1px solid var(--dsw-alias-line-border-subtle);
+  border-radius: 16px;
+  background: var(--dsw-alias-bg-layer-2);
+}
+
+.benefit {
+  grid-column: 1 / -1;
+  background: linear-gradient(135deg, rgba(56, 116, 255, 0.12), rgba(92, 71, 255, 0.06));
+}
+
+.card h3 {
+  font-size: 14px;
+  line-height: 22px;
+}
+
+.statusRow,
+.actions,
+.quotaRow {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.statusDot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--dsw-alias-state-success-primary);
+}
+
+.statusDot[data-state='signed-out'],
+.statusDot[data-state='login-disabled'] {
+  background: var(--dsw-alias-label-tertiary);
+}
+
+.statusDot[data-state='degraded'] {
+  background: var(--dsw-alias-state-warning-primary);
+}
+
+.statusDot[data-state='unavailable'] {
+  background: var(--dsw-alias-state-error-primary);
+}
+
+.quotaRow {
+  justify-content: space-between;
+  font-size: 13px;
+}
+
+.ratio {
+  font-size: 28px;
+  font-weight: 650;
+  line-height: 34px;
+  letter-spacing: -0.02em;
+}
+
+.verified {
+  color: var(--dsw-alias-state-success-primary);
+  font-size: 12px;
+}
+
+.actions {
+  flex-wrap: wrap;
+}
+
+.error {
+  color: var(--dsw-alias-state-error-primary);
+  font-size: 13px;
+  line-height: 20px;
+}
+
+@media (max-width: 720px) {
+  .grid {
+    grid-template-columns: 1fr;
+  }
+
+  .benefit {
+    grid-column: auto;
+  }
+}

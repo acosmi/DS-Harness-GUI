@@ -1,0 +1,24 @@
+{
+  "name": "@acosmi/dsh-llm-acosmi",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "lib/index.js",
+  "types": "lib/types/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./lib/types/index.d.ts",
+      "default": "./lib/index.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "dependencies": {
+    "@acosmi/dsh-account-acosmi": "workspace:^",
+    "@acosmi/sdk-ts": "2.17.0",
+    "@deepseek-ai/cordis": "workspace:^",
+    "@deepseek-ai/dsh-llm": "workspace:^",
+    "@deepseek-ai/dsh-timeout": "workspace:^",
+    "@deepseek-ai/schemastery": "workspace:^"
+  },
+  "license": "MIT"
+}

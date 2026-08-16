@@ -1,0 +1,27 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" role="img" aria-labelledby="title desc">
+  <title id="title">DeepSeek Harness GUI whale mark</title>
+  <desc id="desc">A rounded agent workspace whose frame flows into an abstract whale body and upper-right tail.</desc>
+  <rect x="72" y="344" width="660" height="520" rx="88" fill="#3A4B7A" />
+  <path
+    fill="#3A4B7A"
+    d="M450 824
+       C590 828 700 770 774 674
+       C836 588 864 496 868 404
+       C842 382 822 352 812 318
+       C800 278 808 238 832 202
+       C856 238 880 268 902 296
+       C932 260 968 240 998 248
+       C992 316 958 358 908 378
+       C916 484 892 598 830 700
+       C758 810 632 860 480 856
+       L450 824Z" />
+  <rect x="126" y="476" width="560" height="318" rx="52" fill="#E5EBFF" />
+  <circle cx="154" cy="410" r="11" fill="#E5EBFF" />
+  <circle cx="198" cy="410" r="11" fill="#E5EBFF" />
+  <rect x="246" y="476" width="18" height="318" fill="#3A4B7A" />
+  <rect x="592" y="476" width="18" height="318" fill="#3A4B7A" />
+  <rect x="178" y="568" width="34" height="130" rx="17" fill="#3A4B7A" />
+  <rect x="300" y="540" width="140" height="36" rx="18" fill="#3A4B7A" />
+  <rect x="300" y="718" width="250" height="36" rx="18" fill="#3A4B7A" />
+  <rect x="628" y="625" width="34" height="22" rx="11" fill="#3A4B7A" />
+</svg>

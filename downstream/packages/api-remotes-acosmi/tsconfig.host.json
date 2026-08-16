@@ -1,0 +1,13 @@
+{
+  "extends": "../../../tsconfig.base.json",
+  "compilerOptions": {
+    "rootDir": "src",
+    "outDir": "lib/types"
+  },
+  "include": ["src/index.ts"],
+  "references": [
+    { "path": "../../../vendor/cordis" },
+    { "path": "../../../packages/typert/protocol" },
+    { "path": "../account-acosmi" }
+  ]
+}

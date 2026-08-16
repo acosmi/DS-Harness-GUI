@@ -1,0 +1,13 @@
+- id: account-acosmi
+  config:
+    tokenKey: com.acosmi.dsharness.gui:stable:profile-default:https://acosmi.com:account-current
+    loginEnabled: true
+    gatewayBaseUrl: https://acosmi.com
+    oauthAppName: DSH-GUI
+    loginTimeoutMs: 180000
+    logoutTimeoutMs: 10000
+    refreshIntervalMs: 300000
+    refreshJitterMs: 30000
+    refreshTimeoutMs: 30000
+    projectionPollIntervalMs: 60000
+    productVersion: 0.1.0-dev.1

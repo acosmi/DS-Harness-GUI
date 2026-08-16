@@ -1,0 +1,16 @@
+{
+  "$schema": "./responsibilities.schema.json",
+  "schemaVersion": 1,
+  "roles": [
+    { "id": "product", "owner": null, "backup": null, "evidence": null, "due": null, "escalationHours": 24 },
+    { "id": "desktop-engineering", "owner": null, "backup": null, "evidence": null, "due": null, "escalationHours": 24 },
+    { "id": "sdk", "owner": null, "backup": null, "evidence": null, "due": null, "escalationHours": 24 },
+    { "id": "identity-billing", "owner": null, "backup": null, "evidence": null, "due": null, "escalationHours": 24 },
+    { "id": "security-privacy", "owner": null, "backup": null, "evidence": null, "due": null, "escalationHours": 24 },
+    { "id": "legal-brand", "owner": null, "backup": null, "evidence": null, "due": null, "escalationHours": 48 },
+    { "id": "release", "owner": null, "backup": null, "evidence": null, "due": null, "escalationHours": 24 },
+    { "id": "qa-accessibility", "owner": null, "backup": null, "evidence": null, "due": null, "escalationHours": 24 },
+    { "id": "github-admin", "owner": null, "backup": null, "evidence": null, "due": null, "escalationHours": 24 },
+    { "id": "support-incident", "owner": null, "backup": null, "evidence": null, "due": null, "escalationHours": 24 }
+  ]
+}

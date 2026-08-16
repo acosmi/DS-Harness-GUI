@@ -1,0 +1,84 @@
+{
+  "$schema": "./identity.schema.json",
+  "schemaVersion": 1,
+  "productName": "DSH-GUI",
+  "displayNameZh": "DeepSeek Harness 桌面端",
+  "productIdentifier": "com.acosmi.dsharness.gui",
+  "repository": "https://github.com/acosmi/DS-HarnesshGUI",
+  "description": "An Acosmi community desktop distribution built from the open-source DeepSeek Harness project",
+  "disclaimer": "DSH-GUI is a community distribution maintained by Acosmi and is not an official DeepSeek distribution.",
+  "publisher": {
+    "displayName": "Acosmi",
+    "legalEntity": null
+  },
+  "macSigning": {
+    "identitySha1": "A6616C59EA24F8DE1D97ECC8081AE64E3D7D6F61",
+    "commonName": "Developer ID Application: Zhigang Fu (Z6BDN8ZHTY)",
+    "teamId": "Z6BDN8ZHTY",
+    "certificateId": "4M4HCHYCT2",
+    "serialNumber": "02821B35BD6AE31E26DF5F3118B975B5",
+    "validFrom": "2026-08-15",
+    "validUntil": "2031-08-16",
+    "authorityChain": [
+      "Developer ID Application: Zhigang Fu (Z6BDN8ZHTY)",
+      "Developer ID Certification Authority",
+      "Apple Root CA"
+    ]
+  },
+  "channels": {
+    "stable": {
+      "productName": "DSH-GUI",
+      "bundleId": "com.acosmi.dsharness.gui",
+      "mac": {
+        "helperBundleId": "com.acosmi.dsharness.gui.helper",
+        "helperRendererBundleId": "com.acosmi.dsharness.gui.helper.renderer",
+        "helperPluginBundleId": "com.acosmi.dsharness.gui.helper.plugin",
+        "helperGpuBundleId": "com.acosmi.dsharness.gui.helper.gpu",
+        "helperEhBundleId": "com.acosmi.dsharness.gui.helper.eh"
+      },
+      "windows": {
+        "applicationId": "com.acosmi.dsharness.gui",
+        "aumid": "com.acosmi.dsharness.gui",
+        "executableName": "DSH-GUI",
+        "installerGuid": "7c9ff783-e4f7-47b7-97cb-3e79cfa72ca4",
+        "startMenuShortcut": "DSH-GUI",
+        "uninstallRegistryKey": "com.acosmi.dsharness.gui",
+        "updateFeedId": "com.acosmi.dsharness.gui.stable"
+      },
+      "protocol": "dshgui",
+      "userDataDirectory": "DSH-GUI",
+      "harnessDirectory": "harness",
+      "vaultFilename": "secrets.v2.json",
+      "profileFilename": "profile.v1.json",
+      "secretNamespace": "com.acosmi.dsharness.gui",
+      "updateFeedId": "com.acosmi.dsharness.gui.stable"
+    },
+    "canary": {
+      "productName": "DSH-GUI Canary",
+      "bundleId": "com.acosmi.dsharness.gui.canary",
+      "mac": {
+        "helperBundleId": "com.acosmi.dsharness.gui.canary.helper",
+        "helperRendererBundleId": "com.acosmi.dsharness.gui.canary.helper.renderer",
+        "helperPluginBundleId": "com.acosmi.dsharness.gui.canary.helper.plugin",
+        "helperGpuBundleId": "com.acosmi.dsharness.gui.canary.helper.gpu",
+        "helperEhBundleId": "com.acosmi.dsharness.gui.canary.helper.eh"
+      },
+      "windows": {
+        "applicationId": "com.acosmi.dsharness.gui.canary",
+        "aumid": "com.acosmi.dsharness.gui.canary",
+        "executableName": "DSH-GUI-Canary",
+        "installerGuid": "5574363d-cf7f-4f1e-9898-2510846e2ee6",
+        "startMenuShortcut": "DSH-GUI Canary",
+        "uninstallRegistryKey": "com.acosmi.dsharness.gui.canary",
+        "updateFeedId": "com.acosmi.dsharness.gui.canary"
+      },
+      "protocol": "dshgui-canary",
+      "userDataDirectory": "DSH-GUI Canary",
+      "harnessDirectory": "harness",
+      "vaultFilename": "secrets.v2.json",
+      "profileFilename": "profile.v1.json",
+      "secretNamespace": "com.acosmi.dsharness.gui.canary",
+      "updateFeedId": "com.acosmi.dsharness.gui.canary"
+    }
+  }
+}

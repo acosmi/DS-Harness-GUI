@@ -1,0 +1,52 @@
+{
+  "name": "@acosmi/dsh-desktop-runtime-electron",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "lib/index.js",
+  "types": "lib/types/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./lib/types/index.d.ts",
+      "default": "./lib/index.js"
+    },
+    "./main": {
+      "types": "./lib/types/main.d.ts",
+      "default": "./lib/main.js"
+    },
+    "./preload": {
+      "types": "./lib/types/preload.d.ts",
+      "default": "./lib/preload.js"
+    },
+    "./utility": {
+      "types": "./lib/types/utility.d.ts",
+      "default": "./lib/utility.js"
+    },
+    "./messages": {
+      "types": "./lib/types/messages.d.ts",
+      "default": "./lib/messages.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "files": ["lib/**/*.js", "lib/types/**/*.d.ts"],
+  "dependencies": {
+    "@acosmi/dsh-account-acosmi": "workspace:^",
+    "@acosmi/dsh-desktop-bundle": "workspace:^",
+    "@acosmi/dsh-desktop-carrier-electron": "workspace:^",
+    "@acosmi/dsh-desktop-directory-picker": "workspace:^",
+    "@acosmi/dsh-desktop-secrets": "workspace:^",
+    "@acosmi/dsh-desktop-update": "workspace:^",
+    "@deepseek-ai/dsh-app-boot": "workspace:^",
+    "@deepseek-ai/dsh-base": "workspace:^",
+    "@deepseek-ai/dsh-host-apiproxy": "workspace:^",
+    "@deepseek-ai/dsh-web-app": "workspace:^"
+  },
+  "peerDependencies": {
+    "electron": "43.4.0"
+  },
+  "devDependencies": {
+    "@acosmi/sdk-ts": "2.17.0",
+    "electron": "43.4.0"
+  },
+  "license": "MIT"
+}

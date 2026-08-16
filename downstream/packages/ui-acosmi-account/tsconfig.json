@@ -1,0 +1,21 @@
+{
+  "extends": "../../../tsconfig.base.client.json",
+  "compilerOptions": {
+    "rootDir": "src",
+    "outDir": "lib/types"
+  },
+  "include": ["src"],
+  "references": [
+    { "path": "../../../vendor/cordis" },
+    { "path": "../../../packages/api/remotes/tsconfig.client.json" },
+    { "path": "../../../packages/client/runtime" },
+    { "path": "../../../packages/client/ui-primitives" },
+    { "path": "../../../packages/client/ui-model-selection" },
+    { "path": "../../../packages/client/ui-settings" },
+    { "path": "../../../packages/client/ui-slots" },
+    { "path": "../../../packages/client/web-react" },
+    { "path": "../../../packages/client/locale" },
+    { "path": "../desktop-carrier-electron/tsconfig.client.json" },
+    { "path": "../api-remotes-acosmi/tsconfig.client.json" }
+  ]
+}
