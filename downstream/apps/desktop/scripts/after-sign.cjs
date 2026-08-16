@@ -16,12 +16,13 @@ const EXPECTED_ARCHITECTURES = {
 /**
  * Parse the security facts emitted by `codesign --display --verbose=4`.
  * @param {string} output - combined stdout and stderr from codesign.
- * @returns {{ authorities: string[]; identifier?: string; runtime: boolean; teamIdentifier?: string; timestamp?: string }} parsed signature facts.
+ * @returns {{ authorities: string[]; cdhash?: string; identifier?: string; runtime: boolean; teamIdentifier?: string; timestamp?: string }} parsed signature facts.
  */
 function parseCodesignDisplay(output) {
   const facts = { authorities: [], runtime: false }
   for (const line of output.split(/\r?\n/u)) {
     if (line.startsWith('Authority=')) facts.authorities.push(line.slice('Authority='.length))
+    else if (line.startsWith('CDHash=')) facts.cdhash = line.slice('CDHash='.length)
     else if (line.startsWith('Identifier=')) facts.identifier = line.slice('Identifier='.length)
     else if (line.startsWith('TeamIdentifier=')) {
       facts.teamIdentifier = line.slice('TeamIdentifier='.length)
