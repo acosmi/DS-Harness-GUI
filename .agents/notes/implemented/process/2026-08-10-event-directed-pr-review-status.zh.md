@@ -14,6 +14,8 @@ Issue 所在 Project 中的状态记录了解决工作的下一步由谁负责�
 
 Issue 生命周期工作流把评审 webhook 视为命令。`pull_request.review_requested`（包括重复请求）将目标状态指定为 `In review`。`pull_request_review.submitted` 将目标状态指定为 `In progress`，但仅在 `review.state` 为 `changes_requested` 时生效；submitted 事件仍不可省略，因为评审人即使没有先触发 review-request 事件，也可以直接提出修改要求。对于 approved 和 commented 提交，工作流会在生命周期作业创建 Project token 前跳过该作业；dismissed 评审则不在订阅范围内。
 
+两条 Issue 管理命令都会在认证或访问 API 前校验 `event.repository.full_name`。只有 Issue 管理配置指定的仓库会执行策略和 Project 生命周期；来自其他仓库且格式完整的事件会以成功的空操作结束，缺少仓库标识的事件则会失败。这样，限定于仓库的 token 和 Project 元数据不会被用于镜像仓库或派生仓库。
+
 工作流订阅的普通 PR 事件仍是只向前推进的实现信号：它们可以将 `Inbox`、`Backlog` 或 `Ready` 推进至 `In progress`，但不能让 `In review` 倒退。请求评审命令可将任意较早的活跃状态推进至 `In review`。请求修改命令可将较早的活跃状态推进至 `In progress`；它也可以让 `In review` 状态回退，但仅在目标 Project 的最新状态事件由配置的生命周期执行主体写入时进行。若最新状态事件的执行主体是人工用户或未知主体，则保留当前状态。
 
 处理器仅解析同一仓库内严格匹配的 `Fixes`、`Closes` 或 `Resolves` 引用。它不会更改终态、将没有 Project 状态的 Issue 添加到 Project、依赖 PR 元数据是否有效、查询 `reviewDecision`、重建评审轮次、从 Issue 反向查找 PR，或运行定时协调器。
@@ -22,7 +24,7 @@ Issue 生命周期工作流把评审 webhook 视为命令。`pull_request.review
 
 ## 验证
 
-[Issue 管理测试](../../../../.github/issue-management/policy.test.mjs)锁定事件到命令的映射、请求修改命令后重复请求评审所触发的状态转换、请求修改后的状态回退、终态保护，以及保留人工覆盖状态。[工作流测试](../../../../scripts/ci-workflow.spec.ts)锁定订阅事件、请求修改作业的条件，以及独立的 `ready_for_review` 策略触发器。
+[Issue 管理测试](../../../../.github/issue-management/policy.test.mjs)通过真实命令入口锁定仓库所有权、缺少仓库标识时的拒绝行为、事件到命令的映射、请求修改命令后重复请求评审所触发的状态转换、请求修改后的状态回退、终态保护，以及保留人工覆盖状态。[工作流测试](../../../../scripts/ci-workflow.spec.ts)锁定订阅事件、请求修改作业的条件，以及独立的 `ready_for_review` 策略触发器。
 
 ## 考虑过的替代方案
 
@@ -34,8 +36,12 @@ Issue 生命周期工作流把评审 webhook 视为命令。`pull_request.review
 
 **恢复 `ready_for_review` 或添加防抖队列。** Ready 状态并不表示两种评审交接中的任何一种；新增队列只会增加延迟和控制平面状态，不会改变任一命令。
 
+**把 Issue 管理动态改为针对每个事件仓库。** PR 读取可以动态使用事件仓库，但 Project 标识、生命周期所有权、Issue 元数据和 token 权限仍由单个仓库的配置决定。若只在镜像仓库运行其中可读取的部分，会把不完整的策略呈现为权威结果；因此派生仓库会收到一条显式空操作。
+
 ## 后果
 
 即使 GitHub 仍报告一个较早的阻塞性评审，重复请求评审也会将正由当前 PR 解决且由自动化管理的 Issue 推进至 `In review`。后续提出修改要求的评审会将其退回 `In progress`；批准、评论、撤销评审、推送和移除评审人都不会改变最近一条命令设定的状态。
 
 投影仍由事件驱动；如果某个事件从未触发工作流运行，投影不会自行修复。回放旧的工作流运行可能会再次执行其中的旧命令；ProjectV2 仍不提供在读取最新状态与执行变更之间进行原子比较并交换（compare-and-swap）的能力。以单个 PR 为粒度的工作流并发控制和人工状态所有权保护机制可减少这些竞态，而无需引入持久化生命周期状态。
+
+镜像仓库和派生仓库无需查询或修改配置仓库，也能保留成功的工作流检查。除非自身配置把本仓库指定为受管理仓库，否则它们不会获得 Issue 策略强制检查或 Project 状态投影。
