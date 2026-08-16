@@ -235,6 +235,19 @@ describe('E2B e2e workflow', () => {
   })
 })
 
+describe('Real API e2e workflow', () => {
+  it('runs only in the secret-owning repository and skips untrusted pull requests', () => {
+    const workflow = loadWorkflow('.github/workflows/e2e.yml')
+    const e2e = workflowJob(workflow, 'e2e')
+    if (typeof e2e.if !== 'string') throw new TypeError('Real API e2e job must define an ownership condition')
+
+    expect(e2e.if).toContain("github.repository == 'deepseek-ai/deepseek-harness'")
+    expect(e2e.if).toContain("github.event_name != 'pull_request'")
+    expect(e2e.if).toContain('github.event.pull_request.head.repo.fork')
+    expect(e2e.if).toContain("github.event.pull_request.user.login == 'dependabot[bot]'")
+  })
+})
+
 describe('Python release workflows', () => {
   it('keeps complete wheel validation separate from protected public publication', () => {
     const workflow = loadWorkflow('.github/workflows/python-release.yml')
@@ -379,13 +392,15 @@ describe('Issue lifecycle workflow', () => {
     const lifecycleJob = workflowJob(lifecycle, 'lifecycle')
     const policy = loadWorkflow('.github/workflows/issue-policy.yml')
     const policyPullRequest = workflowEvent(policy, 'pull_request')
+    const policyJob = workflowJob(policy, 'policy')
 
     expect(lifecyclePullRequest.types).not.toContain('ready_for_review')
     expect(lifecyclePullRequest.types).toContain('review_requested')
     expect(lifecycleReview.types).toEqual(['submitted'])
-    expect(lifecycleJob.if).toBe(
-      "${{ github.event_name != 'pull_request_review' || (github.event.action == 'submitted' && github.event.review.state == 'changes_requested') }}",
-    )
+    expect(lifecycleJob.if).toContain("github.repository == 'deepseek-harness/deepseek-harness'")
+    expect(lifecycleJob.if).toContain("github.event_name != 'pull_request_review'")
+    expect(lifecycleJob.if).toContain("github.event.review.state == 'changes_requested'")
+    expect(policyJob.if).toBe("${{ github.repository == 'deepseek-harness/deepseek-harness' }}")
     expect(policyPullRequest.types).toContain('ready_for_review')
   })
 })

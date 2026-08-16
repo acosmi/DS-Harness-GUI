@@ -24,20 +24,21 @@ ci.yml 的价值在于它无密钥、可 fork、始终为绿：任何贡献者�
 
 ### 触发条件：仅限可信事件
 
-`workflow_dispatch` + `push` 到 `main`/`master` + 每夜 `schedule`（`17 0 * * *`，即北京时间 08:17）+ `pull_request`。push 提供合并后信号；schedule 捕捉外部 API 漂移；dispatch 是手动逃生通道；可信 PR 获得合并前门禁。该合并前信号有意接受 § 安全性中描述的更大密钥暴露面。
+`workflow_dispatch` + `push` 到 `main`/`master` + 每夜 `schedule`（`17 0 * * *`，即北京时间 08:17）+ `pull_request`，并在 job 层全部限制为持有 `DEEPSEEK_API_KEY_EXTERNAL` 的规范仓库 `deepseek-ai/deepseek-harness`。push 提供合并后信号；schedule 捕捉外部 API 漂移；dispatch 是手动逃生通道；可信 PR 获得合并前门禁。派生仓库在建立自己的 secret 所有权策略前会得到成功跳过的检查。该合并前信号有意接受 § 安全性中描述的更大密钥暴露面。
 
 ### 不可信 PR 的门禁
 
-GitHub 对两类 PR 扣留 repo secret：来自 **fork** 的 PR，以及 **Dependabot** PR（同仓库分支，`head.repo.fork == false`，但 secret 仍被扣留）。一个 job 级 `if:` 对两者都跳过整个 job：
+GitHub 对两类 PR 扣留 repo secret：来自 **fork** 的 PR，以及 **Dependabot** PR（同仓库分支，`head.repo.fork == false`，但 secret 仍被扣留）。同一个 job 级 `if:` 会先拒绝不持有该 secret 的仓库，再跳过这两类不可信 PR：
 
 ```
-github.event_name != 'pull_request'
-  || !(github.event.pull_request.head.repo.fork || github.event.pull_request.user.login == 'dependabot[bot]')
+github.repository == 'deepseek-ai/deepseek-harness'
+  && (github.event_name != 'pull_request'
+    || !(github.event.pull_request.head.repo.fork || github.event.pull_request.user.login == 'dependabot[bot]'))
 ```
 
 Dependabot 子句基于 PR **作者**（`pull_request.user.login`）而非 `github.actor`（运行触发者）：维护者重新打开或重跑 Dependabot PR 时，`github.actor` 会变成人类，但该 PR 仍然无密钥；基于作者的判断在这种情况下依然正确。被 **job 级** `if:` 跳过的 job 报告为*成功*检查（不同于工作流/触发级跳过会保持 pending），因此如果需要将此工作流标记为 required status check 也是安全的——fork/Dependabot PR 的跳过但绿色的检查不会阻塞合并。
 
-该门禁是一个*干净跳过的便利措施*，而非 secret 的安全边界（见 § 安全性——边界是 GitHub 自身在 `pull_request` 下对 fork 的 secret 扣留机制）。没有该门禁，fork 仍然无法读取密钥；只是会遇到令人困惑的 preflight 硬失败并浪费计算资源。
+该门禁是一个*干净跳过的便利措施*，而非 secret 的安全边界（见 § 安全性——边界是 GitHub 自身在 `pull_request` 下对 fork 的 secret 扣留机制）。没有 PR 子句，fork 仍然无法读取密钥；只是会遇到令人困惑的 preflight 硬失败并浪费计算资源。仓库子句还会避免未配置 secret 的派生仓库中同仓库分支产生相同的虚假失败。
 
 ### Preflight：明确失败，绝不虚假报绿
 
@@ -90,10 +91,11 @@ DeepSeek 原生 `web_search` 探测已注册但会跳过。线上 Anthropic 兼�
 
 - **在 ci.yml 中添加消费 secret 的 job**：否决。会将无密钥、可 fork、始终为绿的门禁耦合到凭证可用性和不同的触发/并发策略上；不同的生命周期，不同的文件。
 - **省略 `pull_request` 触发器**（更小的密钥暴露面）：为获得合并前信号而否决；安全性章节承载了已接受的暴露分析。
+- **在每个派生仓库自动运行**：否决，因为仓库 secret、授权、成本所有权和端点策略不会随源码历史转移。派生仓库只有在记录并配置这些输入后，才启用自己的真实 API 工作流。
 
 ## 后果
 
-新增一个 CI 工作流和仓库的首个需要维护的 secret。真实 API 套件现在作为合并门禁（可信 PR 上的合并前门禁、主分支上的合并后门禁）并每夜运行，因此 agent 与外部 API 交互中的真实故障会在 CI 中浮现，而非仅在开发者的本地运行中出现——代价是每个可信 PR 和合并都会产生真实的（但内部免费的）API 调用。preflight 使 secret 配置错误变为自我通告而非静默禁用安全网。
+新增一个 CI 工作流和仓库的首个需要维护的 secret。在持有该 secret 的仓库中，真实 API 套件作为合并门禁（可信 PR 上的合并前门禁、主分支上的合并后门禁）并每夜运行，因此 agent 与外部 API 交互中的真实故障会在 CI 中浮现，而非仅在开发者的本地运行中出现——代价是每个可信 PR 和合并都会产生真实的（但内部免费的）API 调用。派生仓库会报告成功跳过的检查，但不会声称已获得真实 API 覆盖。preflight 使持有 secret 的仓库中的配置错误变为自我通告，而非静默禁用安全网。
 
 该设计带有已记录的约束表面：`pull_request` 触发器在密钥暴露方面的取舍（删除它可加强防护）、`if:` 门禁对基于作者的 Dependabot 检查的依赖，以及对 `pull_request_target` 的严格禁止。上方公开仓库检查清单是操作配套——未来维护者在更改触发器集合或切换仓库可见性之前，应重新阅读本 Agent Note，而不是从头推导 fork/secret 模型。
 

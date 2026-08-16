@@ -36,7 +36,12 @@ concurrency:
 jobs:
   lifecycle:
     name: Issue lifecycle
-    if: ${{ github.event_name != 'pull_request_review' || (github.event.action == 'submitted' && github.event.review.state == 'changes_requested') }}
+    # Project identity and the GitHub App credentials belong to the configured
+    # repository. Derived repositories receive a successful skipped check.
+    if: >-
+      github.repository == 'deepseek-harness/deepseek-harness'
+      && (github.event_name != 'pull_request_review'
+      || (github.event.action == 'submitted' && github.event.review.state == 'changes_requested'))
     runs-on: ubuntu-latest
     steps:
       - name: Check out trusted policy

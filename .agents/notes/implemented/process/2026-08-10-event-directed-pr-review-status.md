@@ -14,7 +14,7 @@ A monotonic projection also cannot return an automation-owned Issue from `In rev
 
 The Issue lifecycle workflow treats review webhooks as commands. `pull_request.review_requested`, including a repeated request, targets `In review`. `pull_request_review.submitted` targets `In progress` only when `review.state` is `changes_requested`; the submitted event remains necessary because a reviewer can request changes without an earlier review-request event. Approved and commented submissions skip their lifecycle job before it creates a Project token, while dismissed reviews are not subscribed.
 
-Both Issue-management commands validate `event.repository.full_name` before authentication or API access. Only the repository named by the Issue-management configuration executes the policy and Project lifecycle; a well-formed event from any other repository completes as a successful no-op, while a missing repository identity fails. This keeps repository-scoped tokens and Project metadata from being applied to a mirror or derived repository.
+Both workflows gate their jobs on the repository named by the Issue-management configuration, before checkout or GitHub App token creation. Both commands also validate `event.repository.full_name` before authentication or API access. A well-formed event from any other repository completes as a successful skipped job or command no-op, while a command event with no repository identity fails. This keeps repository-scoped tokens and Project metadata from being applied to a mirror or derived repository.
 
 Ordinary subscribed pull-request events remain forward-only implementation signals: they can move `Inbox`, `Backlog`, or `Ready` to `In progress`, but they cannot move `In review` backward. Review-request commands can move any earlier active status to `In review`. Changes-requested commands can move earlier active statuses forward to `In progress` and can move `In review` back only when the latest status event for the target Project was written by the configured lifecycle actor. A human or unknown latest actor preserves the current status.
 
@@ -24,7 +24,7 @@ The handler resolves only exact same-repository `Fixes`, `Closes`, or `Resolves`
 
 ## Verification
 
-[Issue-management tests](../../../../.github/issue-management/policy.test.mjs) pin repository ownership through the real command entry path, missing repository rejection, the event-to-command mapping, the repeated-review-request transition after a changes-requested command, the changes-requested regression, terminal protection, and human override preservation. [Workflow tests](../../../../scripts/ci-workflow.spec.ts) pin the subscribed events, the changes-requested job condition, and the separate `ready_for_review` policy trigger.
+[Issue-management tests](../../../../.github/issue-management/policy.test.mjs) pin repository ownership through the real command entry path, missing repository rejection, the event-to-command mapping, the repeated-review-request transition after a changes-requested command, the changes-requested regression, terminal protection, and human override preservation. [Workflow tests](../../../../scripts/ci-workflow.spec.ts) pin both repository guards, the subscribed events, the changes-requested job condition, and the separate `ready_for_review` policy trigger.
 
 ## Alternatives considered
 
@@ -44,4 +44,4 @@ A repeated review request moves an automation-managed resolving Issue to `In rev
 
 The projection remains event-driven and does not repair an event that never runs. Replaying an old workflow run can replay its old command, and ProjectV2 still provides no atomic compare-and-swap between the latest-state read and mutation. Per-pull-request workflow concurrency and the human-ownership guard reduce these races without introducing durable lifecycle state.
 
-Mirrors and derived repositories retain successful workflow checks without querying or mutating the configured repository. They do not receive Issue policy enforcement or Project status projection unless their own configuration names them as the managed repository.
+Mirrors and derived repositories retain successful skipped workflow checks without checking out the policy, creating the Project token, or querying or mutating the configured repository. They do not receive Issue policy enforcement or Project status projection unless their own configuration names them as the managed repository.
