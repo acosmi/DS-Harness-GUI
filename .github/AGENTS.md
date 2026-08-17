@@ -1,3 +1,5 @@
 # AGENTS.md — GitHub Actions
 
 Run jobs on Windows runners (`windows-*` labels) under native `pwsh`. The pull-request `windows` job is the deliberate exception: it runs Windows Node under Wine on hosted Linux and blocks `all checks passed`; `windows-native` reports independently and uses the organization-owned larger runner in the canonical repository, its self-hosted `[self-hosted, dsh-win-ci, windows]` pool under `DSH_CI_FAILOVER_WINDOWS=selfhosted`, or standard `windows-2025` in a derived repository. The master `serial-windows` standby continuously validates the canonical repository's self-hosted failover target — see the [failover runbook](../.agents/notes/implemented/process/2026-07-26-ci-failover-runbook.md).
+
+Repository-writing automation creates or updates `codex/automation/<task>` and lets [`automation-pull-request.yml`](workflows/automation-pull-request.yml) open one draft PR. It never pushes the default branch, reviews its PR, enables auto-merge, or merges; a repository administrator merges after the required checks.
