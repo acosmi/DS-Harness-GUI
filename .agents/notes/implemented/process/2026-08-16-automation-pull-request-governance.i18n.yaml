@@ -2,5 +2,5 @@
 # side as of the last confirmed-consistent state. Both languages carry equal authority;
 # after editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write .agents/notes/implemented/process/2026-08-16-automation-pull-request-governance.md
-2026-08-16-automation-pull-request-governance.md: 15c9546b016df9ec5818c5258f447d532d81770e
-2026-08-16-automation-pull-request-governance.zh.md: 39dc627be23772778e214a5d66772012f68b3bd5
+2026-08-16-automation-pull-request-governance.md: bb3fd630a439f69f25c7c62777ab8ad4932a920f
+2026-08-16-automation-pull-request-governance.zh.md: 81499d97a933a75f98a496f9dc728d3bd802a4a7

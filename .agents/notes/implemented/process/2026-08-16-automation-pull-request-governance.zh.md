@@ -14,7 +14,7 @@ Status: implemented
 
 仓库将默认 `GITHUB_TOKEN` 权限保持为只读，并在仓库级允许 GitHub Actions 创建 PR。只有提案工作流授予 `pull-requests: write`，同时保留 `contents: read`。仓库测试扫描全部工作流，拒绝另一项 PR 写入方，把本工作流的 GitHub CLI 动词固定为 PR 列举与创建，并拒绝直接调用 Git。
 
-`main` 保护规则要求所有主体（包括管理员）都通过 PR，要求 `e2e` 与 `all checks passed`，要求解决评审对话，并禁止强制推送和删除。其推送限制允许清单为空，因此只有仓库管理员能够更新分支，但管理员仍须满足 PR 与检查要求。批准数保持为零，避免只有一名管理员的仓库死锁；由管理员执行合并就是人工接受步骤。必需检查的拓扑仍由[可移植 PR CI 决策](2026-07-23-portable-required-pull-request-ci.md)规定。
+`main` 保护规则要求所有主体（包括管理员）都通过 PR，要求 `e2e` 与 `all checks passed`，要求解决评审对话，并禁止强制推送和删除。其推送限制允许清单仅列出唯一的仓库管理员，因此对 `main` 的直接推送仅限于该账户；包括自动化工作流在内的其他所有主体都必须通过 PR 提出更改。批准数保持为零，避免只有一名管理员的仓库死锁；由管理员执行合并就是人工接受步骤。必需检查的拓扑仍由[可移植 PR CI 决策](2026-07-23-portable-required-pull-request-ci.md)规定。
 
 使用 `GITHUB_TOKEN` 创建的 PR 会进入 GitHub 要求批准后才运行工作流的状态。管理员启动检查、评审结果并执行合并；自动化永不批准自己的提案。这延伸了仓库现有的[依赖更新策略](2026-07-27-dependabot-version-updates.md)，后者同样把自动提案与维护者接受分开。
 
