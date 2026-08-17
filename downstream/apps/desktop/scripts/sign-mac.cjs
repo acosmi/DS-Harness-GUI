@@ -12,7 +12,10 @@ const identity = require('../../../release/identity.json')
  * @param {(options: object) => Promise<void>} [signer] - osx-sign implementation.
  * @returns {Promise<void>} Completion after the application is signed and verified.
  */
-async function signMac(options, _packager, signer = require('@electron/osx-sign').signAsync) {
+async function signMac(options, _packager, signer) {
+  if (signer === undefined) {
+    ;({ sign: signer } = await import('@electron/osx-sign'))
+  }
   const expectedSha1 = identity.macSigning.identitySha1
   if (options.identity !== expectedSha1) {
     throw new Error(
