@@ -89,6 +89,24 @@ function codesignDisplay(file) {
   ))
 }
 
+/**
+ * Require stapling to preserve the signed disk image's CodeDirectory hash.
+ * @param {string | undefined} before - cdhash read from the verified signed image.
+ * @param {string | undefined} after - cdhash read after ticket stapling.
+ * @param {string} subject - non-secret artifact-relative object label.
+ */
+function assertMacCdhashUnchanged(before, after, subject) {
+  if (before === undefined || before.length === 0) {
+    throw new Error(`${subject} has no signed disk-image cdhash before notarization`)
+  }
+  if (after === undefined || after.length === 0) {
+    throw new Error(`${subject} has no disk-image cdhash after ticket stapling`)
+  }
+  if (after !== before) {
+    throw new Error(`${subject} cdhash changed from ${before} to ${after} during ticket stapling`)
+  }
+}
+
 function verifyApplication(appPath, channel, expectedArchitecture) {
   const channelIdentity = identity.channels[channel]
   run('/usr/bin/codesign', ['--verify', '--deep', '--strict', '--verbose=4', appPath], 'codesign application')
@@ -115,6 +133,11 @@ function verifyApplication(appPath, channel, expectedArchitecture) {
 }
 
 function notarizeAndVerifyDmg(dmgPath, environment) {
+  const subject = path.basename(dmgPath)
+  run('/usr/bin/codesign', ['--verify', '--strict', '--verbose=4', dmgPath], 'codesign disk image')
+  const signedFacts = codesignDisplay(dmgPath)
+  assertMacSigningIdentityFacts(signedFacts, identity.macSigning, subject)
+  verifyMacSigningCertificate(dmgPath, identity.macSigning, subject)
   const authorization = notaryAuthorizationArgs(environment)
   const output = execute(
     '/usr/bin/xcrun',
@@ -124,9 +147,9 @@ function notarizeAndVerifyDmg(dmgPath, environment) {
   const submissionId = parseNotarySubmission(output.stdout.trim())
   run('/usr/bin/xcrun', ['stapler', 'staple', '-v', dmgPath], 'stapler staple disk image')
   run('/usr/bin/xcrun', ['stapler', 'validate', '-v', dmgPath], 'stapler validate disk image')
-  run('/usr/bin/codesign', ['--verify', '--strict', '--verbose=4', dmgPath], 'codesign disk image')
-  assertMacSigningIdentityFacts(codesignDisplay(dmgPath), identity.macSigning, path.basename(dmgPath))
-  verifyMacSigningCertificate(dmgPath, identity.macSigning, path.basename(dmgPath))
+  run('/usr/bin/hdiutil', ['verify', dmgPath], 'hdiutil verify disk image')
+  const stapledFacts = codesignDisplay(dmgPath)
+  assertMacCdhashUnchanged(signedFacts.cdhash, stapledFacts.cdhash, subject)
   run(
     '/usr/sbin/spctl',
     ['--assess', '--type', 'open', '--context', 'context:primary-signature', '--verbose=4', dmgPath],
@@ -146,6 +169,47 @@ function verifyZip(zipPath, channel, expectedArchitecture) {
   } finally {
     fs.rmSync(temporaryRoot, { recursive: true, force: true })
   }
+}
+
+function electronBuilderBlockmapBuilder() {
+  const electronBuilderManifest = require.resolve('electron-builder/package.json')
+  const blockmapModulePath = require.resolve(
+    'app-builder-lib/out/targets/blockmap/blockmap.js',
+    { paths: [path.dirname(electronBuilderManifest)] },
+  )
+  const blockmapModule = require(blockmapModulePath)
+  if (typeof blockmapModule.buildBlockMap !== 'function') {
+    throw new Error('electron-builder blockmap generator is unavailable')
+  }
+  return blockmapModule.buildBlockMap
+}
+
+/**
+ * Replace a packaged artifact's blockmap with one generated from its current bytes.
+ * @param {string} artifactPath - final artifact whose bytes the blockmap must describe.
+ * @returns {Promise<string>} regenerated blockmap path.
+ */
+async function rebuildArtifactBlockmap(artifactPath) {
+  const artifact = fs.statSync(artifactPath)
+  if (!artifact.isFile()) throw new Error(`blockmap source is not a file: ${artifactPath}`)
+  const blockmapPath = `${artifactPath}.blockmap`
+  const temporaryPath = `${blockmapPath}.${process.pid}.tmp`
+  try {
+    const result = await electronBuilderBlockmapBuilder()(artifactPath, 'gzip', temporaryPath)
+    const finalArtifact = fs.statSync(artifactPath)
+    if (!finalArtifact.isFile() || result === null || typeof result !== 'object'
+      || result.size !== finalArtifact.size) {
+      throw new Error(`generated blockmap does not describe the final artifact bytes: ${artifactPath}`)
+    }
+    const temporaryBlockmap = fs.statSync(temporaryPath)
+    if (!temporaryBlockmap.isFile() || temporaryBlockmap.size === 0) {
+      throw new Error(`generated blockmap is empty: ${temporaryPath}`)
+    }
+    fs.renameSync(temporaryPath, blockmapPath)
+  } finally {
+    fs.rmSync(temporaryPath, { force: true })
+  }
+  return blockmapPath
 }
 
 async function sha256(file) {
@@ -215,15 +279,18 @@ async function finalizeMacArtifacts(options) {
     if (!fs.statSync(artifact).isFile()) throw new Error(`expected macOS artifact is not a file: ${artifact}`)
   }
   const submissionId = notarizeAndVerifyDmg(options.dmgPath, options.environment ?? process.env)
+  await rebuildArtifactBlockmap(options.dmgPath)
   verifyZip(options.zipPath, options.channel, options.expectedArchitecture)
   const [dmgSha256, zipSha256] = await Promise.all([sha256(options.dmgPath), sha256(options.zipPath)])
   return { dmgSha256, submissionId, zipSha256 }
 }
 
 module.exports = {
+  assertMacCdhashUnchanged,
   finalizeMacArtifacts,
   macArtifactPaths,
   notaryAuthorizationArgs,
   parseNotarySubmission,
+  rebuildArtifactBlockmap,
   removeMacArtifactResidue,
 }
