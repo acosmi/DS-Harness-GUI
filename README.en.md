@@ -25,8 +25,8 @@ This repository is a developer preview and is not ready for a stable public rele
 Node.js `^22.19.0 || >=24` and pnpm are required.
 
 ```sh
-git clone https://github.com/acosmi/DS-HarnesshGUI.git
-cd DS-HarnesshGUI
+git clone https://github.com/acosmi/DS-Harness-GUI.git
+cd DS-Harness-GUI
 pnpm install
 ```
 

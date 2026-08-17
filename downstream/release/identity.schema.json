@@ -22,7 +22,7 @@
     "productName": { "const": "DSH-GUI" },
     "displayNameZh": { "const": "DeepSeek Harness 桌面端" },
     "productIdentifier": { "const": "com.acosmi.dsharness.gui" },
-    "repository": { "const": "https://github.com/acosmi/DS-HarnesshGUI" },
+    "repository": { "const": "https://github.com/acosmi/DS-Harness-GUI" },
     "description": { "type": "string", "minLength": 1 },
     "disclaimer": { "type": "string", "minLength": 1 },
     "publisher": {

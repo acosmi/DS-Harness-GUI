@@ -28,7 +28,7 @@
       "properties": {
         "name": { "const": "DSH-GUI" },
         "identifier": { "const": "com.acosmi.dsharness.gui" },
-        "repository": { "const": "https://github.com/acosmi/DS-HarnesshGUI" }
+        "repository": { "const": "https://github.com/acosmi/DS-Harness-GUI" }
       }
     },
     "upstream": {

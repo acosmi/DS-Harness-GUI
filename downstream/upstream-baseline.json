@@ -4,7 +4,7 @@
   "product": {
     "name": "DSH-GUI",
     "identifier": "com.acosmi.dsharness.gui",
-    "repository": "https://github.com/acosmi/DS-HarnesshGUI"
+    "repository": "https://github.com/acosmi/DS-Harness-GUI"
   },
   "upstream": {
     "repository": "https://github.com/deepseek-ai/deepseek-harness",

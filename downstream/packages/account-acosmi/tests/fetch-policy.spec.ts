@@ -32,7 +32,9 @@ describe('Acosmi product fetch policy', () => {
     const headers = new Headers(init?.headers)
     expect(init?.redirect).toBe('error')
     expect(headers.get('x-test')).toBe('present')
-    expect(headers.get('user-agent')).toContain('dsh-gui/0.1.0-dev.1')
+    expect(headers.get('user-agent')).toBe(
+      'dsh-gui/0.1.0-dev.1 (+https://github.com/acosmi/DS-Harness-GUI)',
+    )
   })
 
   it('blocks non-production origins and malformed base configuration before network I/O', async () => {

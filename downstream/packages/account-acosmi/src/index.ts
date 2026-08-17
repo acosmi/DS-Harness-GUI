@@ -727,7 +727,7 @@ export function createAcosmiProductFetch(baseUrl: string, productVersion: string
   const productIdentity = {
     product: 'dsh-gui',
     version: validateProductVersion(productVersion),
-    url: 'https://github.com/acosmi/DS-HarnesshGUI',
+    url: 'https://github.com/acosmi/DS-Harness-GUI',
   } as const
   return async (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
     const target = new URL(input instanceof Request ? input.url : input)
