@@ -2,15 +2,19 @@ import { mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'nod
 import { createRequire } from 'node:module'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
+import { gunzipSync } from 'node:zlib'
 import { describe, expect, it } from 'vitest'
 
 const require = createRequire(import.meta.url)
 const {
+  assertMacCdhashUnchanged,
   macArtifactPaths,
   notaryAuthorizationArgs,
   parseNotarySubmission,
+  rebuildArtifactBlockmap,
   removeMacArtifactResidue,
 } = require('../scripts/mac-artifacts.cjs') as {
+  assertMacCdhashUnchanged(before: string | undefined, after: string | undefined, subject: string): void
   macArtifactPaths(
     artifactRoot: string,
     productName: string,
@@ -19,10 +23,21 @@ const {
   ): { dmgPath: string; zipPath: string }
   notaryAuthorizationArgs(environment?: NodeJS.ProcessEnv): string[]
   parseNotarySubmission(output: string): string
+  rebuildArtifactBlockmap(artifactPath: string): Promise<string>
   removeMacArtifactResidue(artifacts: { dmgPath: string; zipPath: string }): string[]
 }
 
 describe('macOS artifact notarization inputs', () => {
+  it('requires ticket stapling to preserve the signed DMG cdhash', () => {
+    expect(() => assertMacCdhashUnchanged('signed-cdhash', 'signed-cdhash', 'DSH-GUI.dmg')).not.toThrow()
+    expect(() => assertMacCdhashUnchanged(undefined, 'signed-cdhash', 'DSH-GUI.dmg'))
+      .toThrow(/no signed disk-image cdhash/)
+    expect(() => assertMacCdhashUnchanged('signed-cdhash', undefined, 'DSH-GUI.dmg'))
+      .toThrow(/no disk-image cdhash after ticket stapling/)
+    expect(() => assertMacCdhashUnchanged('signed-cdhash', 'changed-cdhash', 'DSH-GUI.dmg'))
+      .toThrow(/cdhash changed/)
+  })
+
   it('maps each complete credential family to notarytool arguments', () => {
     expect(notaryAuthorizationArgs({
       APPLE_KEYCHAIN: '/tmp/release.keychain-db',
@@ -66,6 +81,27 @@ describe('macOS artifact notarization inputs', () => {
 })
 
 describe('macOS artifact preparation', () => {
+  it('replaces a stale blockmap with electron-builder metadata for the final bytes', async () => {
+    const root = mkdtempSync(path.join(tmpdir(), 'dsh-gui-artifact-blockmap-'))
+    try {
+      const artifactPath = path.join(root, 'DSH-GUI.dmg')
+      const contents = Buffer.from('final stapled dmg bytes')
+      writeFileSync(artifactPath, contents)
+      writeFileSync(`${artifactPath}.blockmap`, 'stale blockmap')
+
+      await expect(rebuildArtifactBlockmap(artifactPath)).resolves.toBe(`${artifactPath}.blockmap`)
+      const blockmap = JSON.parse(gunzipSync(readFileSync(`${artifactPath}.blockmap`)).toString('utf8')) as {
+        files: Array<{ sizes: number[] }>
+        version: string
+      }
+      expect(blockmap.version).toBe('2')
+      expect(blockmap.files).toHaveLength(1)
+      expect(blockmap.files[0]?.sizes.reduce((total, size) => total + size, 0)).toBe(contents.length)
+    } finally {
+      rmSync(root, { recursive: true, force: true })
+    }
+  })
+
   it('removes only the selected target distributables and blockmaps', () => {
     const root = mkdtempSync(path.join(tmpdir(), 'dsh-gui-artifact-cleanup-'))
     try {

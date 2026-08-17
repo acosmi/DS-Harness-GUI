@@ -48,7 +48,7 @@
   },
   "lockfile": {
     "path": "pnpm-lock.yaml",
-    "sha256": "05a6d7cc7aa176c9b956d62f7146e6750711db891a205f7cf7e8283592b603a8"
+    "sha256": "c1e5c2eab001d1b68a00e57ea67533532ce9261af2169d9563ab569bda9b9abe"
   },
   "inventories": {
     "identity": "downstream/release/identity.json",
