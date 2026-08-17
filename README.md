@@ -25,8 +25,8 @@ DS Harness GUI 是 Acosmi 基于开源 [DeepSeek Harness](https://github.com/dee
 需要 Node.js `^22.19.0 || >=24` 与 pnpm。
 
 ```sh
-git clone https://github.com/acosmi/DS-HarnesshGUI.git
-cd DS-HarnesshGUI
+git clone https://github.com/acosmi/DS-Harness-GUI.git
+cd DS-Harness-GUI
 pnpm install
 ```
 

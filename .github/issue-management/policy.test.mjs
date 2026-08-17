@@ -81,13 +81,13 @@ const legacyLabels = [
 test('matches only the configured Issue-management repository', () => {
   assert.equal(isConfiguredRepository('deepseek-harness/deepseek-harness'), true)
   assert.equal(isConfiguredRepository('DeepSeek-Harness/DeepSeek-Harness'), true)
-  assert.equal(isConfiguredRepository('acosmi/DS-HarnesshGUI'), false)
+  assert.equal(isConfiguredRepository('acosmi/DS-Harness-GUI'), false)
   assert.equal(isConfiguredRepository(undefined), false)
 })
 
 test('skips an unconfigured repository before authentication', () => {
   const result = runPolicyEvent({
-    repository: { full_name: 'acosmi/DS-HarnesshGUI' },
+    repository: { full_name: 'acosmi/DS-Harness-GUI' },
     pull_request: { number: 14 },
   })
 
