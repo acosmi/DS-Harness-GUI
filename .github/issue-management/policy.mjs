@@ -9,6 +9,7 @@ import config from './config.json' with { type: 'json' }
 const API_VERSION = '2026-03-10'
 const BODY_LIMIT = 50
 const AUDIT_MARKER = '<!-- dsh-issue-policy -->'
+const CONFIGURED_REPOSITORY = `${config.organization}/${config.repository}`
 const OWNER_LINE = /^Owner: @([A-Za-z0-9](?:[A-Za-z0-9-]{0,37}[A-Za-z0-9])?)$/
 const TYPES = new Set(['Idea', 'Feature', 'Bug', 'Research', 'Task'])
 const PRIORITIES = ['p0', 'p1', 'p2', 'p3']
@@ -51,6 +52,18 @@ for (const status of ['In progress', 'In review']) {
 }
 if (typeof config.lifecycleActor !== 'string' || !config.lifecycleActor) {
   throw new Error('config.lifecycleActor 未设置')
+}
+
+/**
+ * Decide whether an event belongs to the configured Issue-management repository.
+ * @param {unknown} fullName Event repository full name.
+ * @returns {boolean} Whether Issue management owns the event.
+ */
+export function isConfiguredRepository(fullName) {
+  return (
+    typeof fullName === 'string' &&
+    fullName.toLowerCase() === CONFIGURED_REPOSITORY.toLowerCase()
+  )
 }
 
 /**
@@ -691,11 +704,29 @@ function readEvent() {
   return JSON.parse(fs.readFileSync(process.env.GITHUB_EVENT_PATH, 'utf8'))
 }
 
+function eventRepository(event) {
+  const fullName = event?.repository?.full_name
+  if (typeof fullName !== 'string' || !fullName) {
+    throw new Error('event.repository.full_name 缺失')
+  }
+  return fullName
+}
+
 async function main(argv) {
   const [command] = argv
-  if (command === 'pr') await runPullRequestCheck(readEvent())
-  else if (command === 'lifecycle') await runLifecycle(process.env.GITHUB_EVENT_NAME, readEvent())
-  else throw new Error('用法：policy.mjs pr|lifecycle')
+  if (command !== 'pr' && command !== 'lifecycle') {
+    throw new Error('用法：policy.mjs pr|lifecycle')
+  }
+  const event = readEvent()
+  const repository = eventRepository(event)
+  if (!isConfiguredRepository(repository)) {
+    process.stdout.write(
+      `Issue management 已跳过：${repository} 不是配置仓库 ${CONFIGURED_REPOSITORY}。\n`,
+    )
+    return
+  }
+  if (command === 'pr') await runPullRequestCheck(event)
+  else await runLifecycle(process.env.GITHUB_EVENT_NAME, event)
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {

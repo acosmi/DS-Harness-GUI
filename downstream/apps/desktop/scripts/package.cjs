@@ -2,11 +2,11 @@ const { spawn } = require('node:child_process')
 const fsp = require('node:fs/promises')
 const { tmpdir } = require('node:os')
 const path = require('node:path')
-const { pathToFileURL } = require('node:url')
+const identity = require('../../../release/identity.json')
+const appManifest = require('../package.json')
 const {
   assertFilesystemRuntimeClosure,
-  ignoredBuildsFromPnpmOutput,
-  assertReviewedIgnoredBuilds,
+  assertNoDeployLifecycleScripts,
   assertSafeStagingPath,
   assertUtilityImports,
   materializeStagedLinks,
@@ -14,16 +14,23 @@ const {
   prepareTargetRuntime,
   withPreservedFile,
 } = require('./runtime-closure.cjs')
-const { desktopChannel } = require('./build-environment.cjs')
+const {
+  desktopChannel,
+  desktopMacNotarizationCredentials,
+  desktopReleaseMode,
+  desktopTrustedSigning,
+} = require('./build-environment.cjs')
+const {
+  finalizeMacArtifacts,
+  macArtifactPaths,
+  removeMacArtifactResidue,
+} = require('./mac-artifacts.cjs')
 
 const APP_PACKAGE = '@acosmi/dsh-desktop-app'
 const repositoryRoot = path.resolve(__dirname, '../../../..')
 const appRoot = path.resolve(__dirname, '..')
 const configPath = path.join(appRoot, 'electron-builder.config.cjs')
 const workspaceStatePath = path.join(repositoryRoot, 'node_modules', '.pnpm-workspace-state-v1.json')
-const expectedIgnoredBuild = `@deepseek-ai/dsh-subprocess-local@${pathToFileURL(
-  path.join(repositoryRoot, 'packages/subprocess/subprocess-local'),
-).href}`
 const electronBuilderCli = require.resolve('electron-builder/cli.js')
 const MAX_CAPTURED_OUTPUT_BYTES = 8 * 1024 * 1024
 const targetDefinitions = {
@@ -117,6 +124,7 @@ async function stage(target, staging) {
     APP_PACKAGE,
     'deploy',
     '--prod',
+    '--ignore-scripts',
     '--config.inject-workspace-packages=true',
     '--config.node-linker=hoisted',
     '--config.link-workspace-packages=true',
@@ -125,9 +133,8 @@ async function stage(target, staging) {
     `--cpu=${definition.cpu}`,
     staging,
   ], { capture: true }))
-  const ignoredBuilds = ignoredBuildsFromPnpmOutput(deployOutput)
-  assertReviewedIgnoredBuilds(ignoredBuilds, expectedIgnoredBuild)
-  console.log(`dsh-gui package: reviewed ignored build: ${ignoredBuilds[0]}`)
+  assertNoDeployLifecycleScripts(deployOutput)
+  console.log('dsh-gui package: dependency lifecycle scripts remained disabled during deploy')
   await materializeStagedLinks(staging)
   prepareTargetRuntime(staging, target)
   const normalizedManifests = normalizeStagedManifestDependencies(staging)
@@ -141,8 +148,31 @@ async function stage(target, staging) {
 
 async function main() {
   const cli = parseCli(process.argv.slice(2))
+  const releaseMode = desktopReleaseMode()
+  const trustedSigning = desktopTrustedSigning(releaseMode)
+  const channel = desktopChannel()
+  const macArtifacts = new Map()
+  if (!cli.directoryOnly) {
+    for (const target of cli.targets) {
+      if (targetDefinitions[target].os !== 'darwin') continue
+      const artifacts = macArtifactPaths(
+        path.join(repositoryRoot, '.artifacts', 'desktop', channel),
+        identity.channels[channel].productName,
+        appManifest.version,
+        targetDefinitions[target].cpu,
+      )
+      macArtifacts.set(target, artifacts)
+      const removed = removeMacArtifactResidue(artifacts)
+      if (removed.length > 0) {
+        console.log(`dsh-gui package: removed ${removed.length} old ${target} artifact files`)
+      }
+    }
+  }
+  if (trustedSigning && cli.targets.some(target => targetDefinitions[target].os === 'darwin')
+    && desktopMacNotarizationCredentials() === null) {
+    throw new Error('trusted macOS packaging requires complete Apple notarization credentials')
+  }
   for (const target of cli.targets) {
-    const channel = desktopChannel()
     const staging = await fsp.mkdtemp(path.join(tmpdir(), `dsh-gui-desktop-staging-${channel}-${target}-`))
     try {
       await stage(target, staging)
@@ -158,6 +188,20 @@ async function main() {
       ]
       if (cli.directoryOnly) builderArgs.push('--dir')
       await run(`electron-builder ${target}`, process.execPath, builderArgs)
+      if (!cli.directoryOnly && trustedSigning && targetDefinitions[target].os === 'darwin') {
+        const arch = targetDefinitions[target].cpu
+        const artifacts = macArtifacts.get(target)
+        if (artifacts === undefined) throw new Error(`missing macOS artifact paths for ${target}`)
+        const result = await finalizeMacArtifacts({
+          channel,
+          dmgPath: artifacts.dmgPath,
+          expectedArchitecture: arch === 'arm64' ? 'arm64' : 'x86_64',
+          zipPath: artifacts.zipPath,
+        })
+        console.log(`dsh-gui package: ${target} DMG notarization ${result.submissionId}`)
+        console.log(`dsh-gui package: ${target} DMG SHA-256 ${result.dmgSha256}`)
+        console.log(`dsh-gui package: ${target} ZIP SHA-256 ${result.zipSha256}`)
+      }
     } finally {
       assertSafeStagingPath(tmpdir(), staging)
       await fsp.rm(staging, { recursive: true, force: true })

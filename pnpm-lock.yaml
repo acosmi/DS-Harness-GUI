@@ -93,6 +93,9 @@ importers:
       micromark-extension-gfm:
         specifier: ^3.0.0
         version: 3.0.0
+      node-gyp:
+        specifier: ^12.4.0
+        version: 12.4.0
       oxlint:
         specifier: 1.76.0
         version: 1.76.0(oxlint-tsgolint@7.0.2001)
@@ -807,6 +810,9 @@ importers:
       '@vitejs/plugin-react':
         specifier: ^4.0.0
         version: 4.7.0(vite@7.3.6(@types/node@26.1.2)(jiti@2.7.0)(lightningcss@1.32.0)(tsx@4.22.4)(yaml@2.9.0))
+      app-builder-lib:
+        specifier: 26.15.3
+        version: 26.15.3(dmg-builder@26.15.3)(electron-builder-squirrel-windows@26.15.3)
       electron:
         specifier: 43.4.0
         version: 43.4.0
@@ -1591,6 +1597,12 @@ importers:
 
   examples:
     dependencies:
+      '@acosmi/dsh-account-acosmi':
+        specifier: workspace:*
+        version: link:../downstream/packages/account-acosmi
+      '@acosmi/dsh-llm-acosmi':
+        specifier: workspace:*
+        version: link:../downstream/packages/llm-acosmi
       '@deepseek-ai/cordis-plugin-hmr':
         specifier: workspace:*
         version: link:../vendor/hmr

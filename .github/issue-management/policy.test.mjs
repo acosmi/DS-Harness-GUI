@@ -1,8 +1,14 @@
 import assert from 'node:assert/strict'
+import { spawnSync } from 'node:child_process'
+import { mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 import test from 'node:test'
+import { fileURLToPath } from 'node:url'
 
 import {
   countVisibleUnits,
+  isConfiguredRepository,
   nextResolvingIssueStatus,
   parseReferences,
   retainIssueReferences,
@@ -12,6 +18,25 @@ import {
   validateIssue,
   validatePullRequest,
 } from './policy.mjs'
+
+const policyPath = fileURLToPath(new URL('./policy.mjs', import.meta.url))
+
+function runPolicyEvent(event, command = 'pr') {
+  const directory = mkdtempSync(join(tmpdir(), 'dsh-issue-policy-'))
+  const eventPath = join(directory, 'event.json')
+  try {
+    writeFileSync(eventPath, JSON.stringify(event))
+    return spawnSync(process.execPath, [policyPath, command], {
+      encoding: 'utf8',
+      env: {
+        GITHUB_EVENT_NAME: 'pull_request',
+        GITHUB_EVENT_PATH: eventPath,
+      },
+    })
+  } finally {
+    rmSync(directory, { recursive: true, force: true })
+  }
+}
 
 const withDetails = (summary) =>
   `${summary}\n\n<details><summary>验收与细节</summary>待补充。</details>`
@@ -52,6 +77,31 @@ const legacyLabels = [
   'llm',
   'web-search',
 ]
+
+test('matches only the configured Issue-management repository', () => {
+  assert.equal(isConfiguredRepository('deepseek-harness/deepseek-harness'), true)
+  assert.equal(isConfiguredRepository('DeepSeek-Harness/DeepSeek-Harness'), true)
+  assert.equal(isConfiguredRepository('acosmi/DS-HarnesshGUI'), false)
+  assert.equal(isConfiguredRepository(undefined), false)
+})
+
+test('skips an unconfigured repository before authentication', () => {
+  const result = runPolicyEvent({
+    repository: { full_name: 'acosmi/DS-HarnesshGUI' },
+    pull_request: { number: 14 },
+  })
+
+  assert.equal(result.status, 0, result.stderr)
+  assert.match(result.stdout, /Issue management 已跳过/)
+  assert.equal(result.stderr, '')
+})
+
+test('rejects an event without repository identity', () => {
+  const result = runPolicyEvent({ pull_request: { number: 14 } })
+
+  assert.equal(result.status, 1)
+  assert.match(result.stderr, /event\.repository\.full_name 缺失/)
+})
 
 const reviewedPull = (labels) => ({
   isDraft: false,

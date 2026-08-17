@@ -19,6 +19,8 @@
     "dev": "pnpm run build && electron .",
     "package:development": "pnpm run build && pnpm run verify:runtime-closure && node scripts/package.cjs --target=host",
     "package:mac": "pnpm run build && pnpm run verify:runtime-closure && node scripts/package.cjs --target=darwin-arm64,darwin-x64",
+    "package:mac:candidate": "DSH_DESKTOP_RELEASE_MODE=candidate pnpm run package:mac",
+    "package:mac:stable": "DSH_DESKTOP_RELEASE_MODE=stable pnpm run package:mac",
     "package:windows": "pnpm run build && pnpm run verify:runtime-closure && node scripts/package.cjs --target=win32-x64"
   },
   "dependencies": {
@@ -167,6 +169,7 @@
     "@vitejs/plugin-react": "^4.0.0",
     "@types/react": "~18.3.1",
     "@types/react-dom": "~18.3.0",
+    "app-builder-lib": "26.15.3",
     "electron": "43.4.0",
     "electron-builder": "26.15.3",
     "tsdown": "^0.22.2",

@@ -109,6 +109,22 @@ describe('connection client apply', () => {
     disposeCarrier = installConnectionCarrier(carrier)
   })
 
+  it('leaves a replacement carrier installed when a stale disposer runs again', async () => {
+    ;(globalThis as Win).location = { hostname: 'desktop.invalid', search: '' }
+    const first = new FixtureApiClient()
+    const staleDispose = installConnectionCarrier({ api: first, rpc: first.rpc, isLoopback: true })
+    staleDispose()
+
+    const replacement = new FixtureApiClient()
+    disposeCarrier = installConnectionCarrier({ api: replacement, rpc: replacement.rpc, isLoopback: false })
+    staleDispose()
+
+    const handle = await mount()
+    expect(handle.api).toBe(replacement)
+    expect(handle.rpc).toBe(replacement.rpc)
+    expect(handle.isLoopback).toBe(false)
+  })
+
   it('keeps the explicit fixture switch ahead of an installed platform carrier', async () => {
     ;(globalThis as Win).location = { hostname: 'desktop.invalid', search: '?fixture' }
     const carrierFixture = new FixtureApiClient()
