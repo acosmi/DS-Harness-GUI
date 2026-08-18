@@ -80,4 +80,15 @@ describe('desktop Harness composition', () => {
       },
     })
   })
+
+  it('replaces the upstream harness identity with the DSH-GUI product persona', () => {
+    const bundleRoot = resolve(import.meta.dirname, '../../../bundles/desktop')
+    expect(loadOverlayPatches('dsh-gui', resolve(bundleRoot, 'cordis.patch.yml'))).toContainEqual({
+      id: 'system-prompt',
+      config: {
+        includeHarnessIdentity: false,
+        persona: "You are an AI agent in DSH-GUI, Acosmi's desktop AI agent workbench, powered by the {{model}} model. Your working directory is {{cwd}}.",
+      },
+    })
+  })
 })
