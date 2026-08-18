@@ -1,6 +1,16 @@
 # Desktop replaces browser serving and transport while retaining the real
 # Harness Host, API gateway, Remote services, sessions, tools and client roster.
 
+# The assistant presents the DSH-GUI product identity: the upstream harness
+# identity line ("powered by DeepSeek Harness") is disabled and the deployment
+# persona names the Acosmi workbench. A session's agent preset still shadows
+# this persona with its own.
+- id: system-prompt
+  config:
+    includeHarnessIdentity: false
+    persona: >-
+      You are an AI agent in DSH-GUI, Acosmi's desktop AI agent workbench, powered by the {{model}} model. Your working directory is {{cwd}}.
+
 - id: hmr
   disabled: true
 
