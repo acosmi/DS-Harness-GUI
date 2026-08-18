@@ -8,6 +8,15 @@ DS Harness GUI is an Acosmi community desktop distribution built from the open-s
 
 This is not an official DeepSeek product and does not imply support or endorsement by DeepSeek. `DS Harness GUI`, the whale-browser logo, and the `@acosmi/*` packages belong to Acosmi's downstream distribution layer. The `@deepseek-ai/*` source and the DeepSeek Harness name identify the upstream project only.
 
+## A local AI agent workbench in one window
+
+No Node setup, no terminal — open it and you have a local AI agent workbench. Sessions, project management, file handling, web research, the plugin system, Office automation… all integrated in one interface, smooth from the first click.
+
+<p align="center">
+  <img src="assets/screenshots/dsh-gui-conversation.png" alt="DSH-GUI conversation and workspace view" width="46%">
+  <img src="assets/screenshots/dsh-gui-settings.png" alt="DSH-GUI settings view: models, plugins, and agent presets" width="46%">
+</p>
+
 ## Current status
 
 This repository is a developer preview and is not ready for a stable public release.

@@ -8,6 +8,15 @@ DS Harness GUI 是 Acosmi 基于开源 [DeepSeek Harness](https://github.com/dee
 
 本项目不是 DeepSeek 官方产品，也不代表 DeepSeek 提供支持或背书。`DS Harness GUI`、鲸鱼浏览器图标与 `@acosmi/*` 包属于 Acosmi 的下游发行层；`@deepseek-ai/*` 源码及 DeepSeek Harness 名称仅用于说明上游来源。
 
+## 一个界面里的本地 AI Agent 工作台
+
+不用折腾 Node、终端，打开就能用本地 AI Agent 工作台。Sessions、项目管理、文件处理、Web Research、插件系统、Office 自动化……全部整合在一个界面里，丝滑上手。
+
+<p align="center">
+  <img src="assets/screenshots/dsh-gui-conversation.png" alt="DSH-GUI 会话与工作区界面" width="46%">
+  <img src="assets/screenshots/dsh-gui-settings.png" alt="DSH-GUI 设置界面：模型、插件与 Agent 预设" width="46%">
+</p>
+
 ## 当前状态
 
 本仓库处于开发者预览阶段，尚未达到 stable 公开发行条件。
