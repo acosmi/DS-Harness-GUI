@@ -5,15 +5,17 @@ import type { ReactNode } from 'react'
 import type {} from '@acosmi/dsh-desktop-carrier-electron/protocol'
 import { Button } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { InjectFace, PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
-import type { SnapshotSelectorHook } from '@deepseek-ai/dsh-client-web-react'
 import type { AcosmiAccountKey } from './locales.ts'
-import type { AcosmiAccountStore, AcosmiAccountUiState } from './store.ts'
+import type { AcosmiAccountStore } from './store.ts'
 import css from './AccountSection.module.css'
 
 /** Registration-owned settings page dependencies. */
 export interface AccountSectionInjected {
   readonly controller: AcosmiAccountStore
-  readonly useSnapshot: SnapshotSelectorHook<AcosmiAccountUiState>
+  readonly hooks: {
+    /** Account projection bound by the UI renderer as useSnapshot. */
+    readonly snapshot: AcosmiAccountStore['store']
+  }
   readonly t: (key: AcosmiAccountKey) => string
 }
 

@@ -10,8 +10,9 @@ afterEach(() => {
 })
 
 describe('Acosmi account foreground refresh', () => {
-  it('refreshes on window focus only while the client plugin is live', () => {
+  it('registers the bare account store and refreshes on focus only while the plugin is live', () => {
     const disposers: Array<() => void> = []
+    const registrations: Array<{ inject?: () => unknown }> = []
     const resume = vi.spyOn(AcosmiAccountStore.prototype, 'resume').mockResolvedValue()
     const ctx = {
       effect(factory: () => unknown) {
@@ -34,10 +35,26 @@ describe('Acosmi account foreground refresh', () => {
       },
       modelDirectories: {},
       logger: { warn: vi.fn() },
-      slots: { inject: vi.fn() },
+      slots: {
+        inject: (_name: string, register: () => unknown) => register(),
+        register: (options: { inject?: () => unknown }) => {
+          registrations.push(options)
+          return () => undefined
+        },
+      },
     }
 
     apply(ctx as never)
+    expect(registrations).toHaveLength(2)
+    for (const registration of registrations) {
+      const face = registration.inject?.() as {
+        controller: AcosmiAccountStore
+        hooks: { snapshot: AcosmiAccountStore['store'] }
+        useSnapshot?: unknown
+      }
+      expect(face.hooks.snapshot).toBe(face.controller.store)
+      expect(face.useSnapshot).toBeUndefined()
+    }
     window.dispatchEvent(new Event('focus'))
     expect(resume).toHaveBeenCalledOnce()
 

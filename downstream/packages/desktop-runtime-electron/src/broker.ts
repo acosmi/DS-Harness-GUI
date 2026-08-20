@@ -52,7 +52,7 @@ export class DesktopUtilityBroker {
 
   /**
    * @param child - Electron utility process running the Harness Host.
-   * @param vault - channel-specific OS-protected vault.
+   * @param vault - channel-specific secret vault selected by the main process.
    * @param owner - current desktop window for native directory dialogs.
    */
   constructor(

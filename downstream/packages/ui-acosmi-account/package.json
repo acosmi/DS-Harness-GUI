@@ -41,7 +41,6 @@
     "@deepseek-ai/dsh-client-ui-model-selection": "workspace:^",
     "@deepseek-ai/dsh-client-ui-settings": "workspace:^",
     "@deepseek-ai/dsh-client-ui-slots": "workspace:^",
-    "@deepseek-ai/dsh-client-web-react": "workspace:^",
     "@acosmi/dsh-api-remotes-acosmi": "workspace:^",
     "react": "^18.2.0"
   },
@@ -55,7 +54,6 @@
     "@deepseek-ai/dsh-client-ui-model-selection": "workspace:^",
     "@deepseek-ai/dsh-client-ui-settings": "workspace:^",
     "@deepseek-ai/dsh-client-ui-slots": "workspace:^",
-    "@deepseek-ai/dsh-client-web-react": "workspace:^",
     "@acosmi/dsh-api-remotes-acosmi": "workspace:^",
     "@types/react": "~18.3.1",
     "react": "^18.2.0"

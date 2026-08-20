@@ -16,7 +16,7 @@ Status: implemented
 
 三项 Linux 主作业、Node 兼容性、Python SDK 单元测试套件、Python 运行时验证和 `windows node 24 / wine blocking` 继续作为 `all checks passed` 的依赖项；`windows node 24 / native complete` 被刻意排除。分支保护继续要求 `e2e` 和 `all checks passed`。派生仓库绝不请求规范组织的标签，因此不会因不可用的运行器组形成死锁。在规范仓库内，[故障切换手册](2026-07-26-ci-failover-runbook.md)记录的平台专用变量可将不可用的企业池重定向到经过验证的自托管热备，而不改变必需清单。
 
-当前主拓扑及其测量结果以[大型运行器决策](2026-07-22-evidence-based-larger-hosted-runners.md)为准。[跨平台串行参考流程](2026-07-21-serial-cross-platform-ci-reference.md)继续作为独立的标准托管完整性检查，手动大型运行器套件则保留规格比较，同时不扩大普通必需矩阵。
+当前主拓扑及其测量结果以[大型运行器决策](2026-07-22-evidence-based-larger-hosted-runners.md)为准。[跨平台串行参考流程](2026-07-21-serial-cross-platform-ci-reference.md)继续作为独立的完整性检查，现由 `master` 上公司自有 `vm-backup`/`dsh-win-ci` 自托管热备通道提供；仅存的托管串行参考是禁用的 `serial-macos`。手动大型运行器套件则保留规格比较，同时不扩大普通必需矩阵。
 
 ## 曾考虑的替代方案
 

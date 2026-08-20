@@ -4,15 +4,17 @@ import { useEffect } from 'react'
 import type { ReactNode } from 'react'
 import { Button, OnboardingSurface } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { InjectFace, PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
-import type { SnapshotSelectorHook } from '@deepseek-ai/dsh-client-web-react'
 import type { AcosmiAccountKey } from './locales.ts'
-import type { AcosmiAccountStore, AcosmiAccountUiState } from './store.ts'
+import type { AcosmiAccountStore } from './store.ts'
 import css from './AccountOnboarding.module.css'
 
 /** Registration-owned onboarding dependencies. */
 export interface AccountOnboardingInjected {
   readonly controller: AcosmiAccountStore
-  readonly useSnapshot: SnapshotSelectorHook<AcosmiAccountUiState>
+  readonly hooks: {
+    /** Account projection bound by the UI renderer as useSnapshot. */
+    readonly snapshot: AcosmiAccountStore['store']
+  }
   readonly t: (key: AcosmiAccountKey) => string
 }
 

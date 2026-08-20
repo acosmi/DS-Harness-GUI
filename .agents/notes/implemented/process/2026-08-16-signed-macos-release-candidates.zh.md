@@ -14,7 +14,7 @@ Status: implemented
 
 `DSH_DESKTOP_RELEASE_MODE` 只接受三个值。`development` 保留 macOS ad hoc 签名并允许源码树不干净。`candidate` 要求源码树干净、使用账本记录的 Developer ID Application SHA-1，并且只存在一组完整的 Apple 公证凭据，但只运行普通六账本一致性检查。`stable` 使用相同签名要求，并继续通过现有 signed-readiness 检查要求所有 stable 输入、冻结产品 commit、兼容性记录、法律实体与职责记录完整。
 
-candidate 与 stable 应用都报告加密事实 `signing: signed`，因此可以使用 OS 保护的 secret 存储；该值不表示发行提升。candidate 打包不会修改账本、把外部输入标为 ready、发布产物或授权 stable 提升。
+candidate 与 stable 应用都报告加密事实 `signing: signed`，因此运行时会选择 OS 保护的 secret 存储，并在加密不可用时失败关闭；该值不表示发行提升。candidate 打包不会修改账本、把外部输入标为 ready、发布产物或授权 stable 提升。
 
 凭据预检只接受一组完整的 App Store Connect API key、Apple ID app password 或 notarytool 钥匙串 profile。凭据不完整或同时混用多组会在暂存前失败。凭据值只作为进程输入，不进入仓库文件、产物日志或构建 metadata。
 

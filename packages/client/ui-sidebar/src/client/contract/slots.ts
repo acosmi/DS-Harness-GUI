@@ -17,11 +17,21 @@ declare module '@deepseek-ai/dsh-client-ui-slots' {
   interface SlotMap {
     /**
      * Optional visual content for the expanded brand shortcut and collapsed
-     * rail mark. The shell retains both button behaviors and supplies the
-     * upstream wordmark or fish fallback for an unoccupied variant; product
-     * bundles may replace only the art and display name.
+     * rail mark. The shell retains both button behaviors and delegates an
+     * unoccupied variant to the granular mark and name seats below.
      */
     'sidebar.brand': { kind: 'single'; scope: 'root'; owner: SidebarBrandOwnerProps }
+    /**
+     * Brand mark rendered in the expanded brand row and collapsed rail.
+     * Declared by this package's `sidebar` entry; deployments may replace
+     * the shell's fish fallback without replacing the surrounding controls.
+     */
+    'sidebar.brand.mark': { kind: 'single'; scope: 'root'; owner: SidebarBrandMarkOwnerProps }
+    /**
+     * Brand name rendered beside the expanded mark. Declared by this
+     * package's `sidebar` entry; the shell supplies a generic text fallback.
+     */
+    'sidebar.brand.name': { kind: 'single'; scope: 'root'; owner: SidebarBrandNameOwnerProps }
     /**
      * The workspace/session browsing region: section header, search, the
      * grouped/flat session list, and every workspace dialog. Declared by this
@@ -47,6 +57,18 @@ declare module '@deepseek-ai/dsh-client-ui-slots' {
 export interface SidebarBrandOwnerProps {
   /** Expanded wordmark or collapsed mark; the shell still owns the surrounding action. */
   variant: 'wordmark' | 'mark'
+}
+
+/** Geometry supplied to the sidebar brand-mark occupant. */
+export interface SidebarBrandMarkOwnerProps {
+  /** Requested square edge in pixels. */
+  size: number
+}
+
+/** Empty owner share for the sidebar brand-name occupant. */
+export interface SidebarBrandNameOwnerProps {
+  /** Marker field: the occupant owns its own content and width. */
+  children?: never
 }
 
 /**
@@ -99,6 +121,11 @@ export type SidebarRootInjected = {
 export type SidebarRootComponentProps =
   PropsRuntime<'sidebar'>
   & PropsRenderSlots<
-    'sidebar.brand' | 'sidebar.workspaces' | 'sidebar.settings' | 'sidebar.footer.action'
+    | 'sidebar.brand'
+    | 'sidebar.brand.mark'
+    | 'sidebar.brand.name'
+    | 'sidebar.workspaces'
+    | 'sidebar.settings'
+    | 'sidebar.footer.action'
   >
   & SidebarRootInjected & PropsLocale<'sidebar'>

@@ -2,7 +2,6 @@
 
 import type { ConnectionHandle, ModelSelection, SessionId } from '@deepseek-ai/dsh-api-remotes/client'
 import type { ClientContext } from '@deepseek-ai/dsh-client-runtime/client'
-import { bindSnapshotSelector } from '@deepseek-ai/dsh-client-web-react'
 import type {} from '@deepseek-ai/dsh-client-ui-settings/client'
 import type {} from '@deepseek-ai/dsh-client-locale/client'
 import type {} from '@deepseek-ai/dsh-api-remotes/client'
@@ -52,10 +51,13 @@ export function apply(ctx: ClientContext): void {
     preferAccountRoute = true
     await reconcileAccountRoute()
   })
-  const useSnapshot = bindSnapshotSelector(controller.store)
   const t = ctx.locale.bind(NS)
-  const injected = (): AccountSectionInjected => ({ controller, useSnapshot, t })
-  const onboardingInjected = (): AccountOnboardingInjected => ({ controller, useSnapshot, t })
+  const injected = (): AccountSectionInjected => ({ controller, hooks: { snapshot: controller.store }, t })
+  const onboardingInjected = (): AccountOnboardingInjected => ({
+    controller,
+    hooks: { snapshot: controller.store },
+    t,
+  })
   const resumeAccount = (): void => { void controller.resume() }
 
   ctx.effect(() => ctx.on('connection/reset', () => { void controller.load() }), 'ui-acosmi-account: reconnect')

@@ -56,7 +56,7 @@ pnpm run build
 pnpm dsh web
 ```
 
-`pnpm dsh web` 默认在 `http://127.0.0.1:3080` 启动 Web UI。通用 Harness 使用说明见 [Web UI 指南](docs/user/guide/index.zh.md)。
+`pnpm run build` 会准备仓库构建产物；`pnpm dsh web` 直接使用这些产物，不会重新构建。它默认在 `http://127.0.0.1:3080` 启动 Web UI，并在本机启动时用默认浏览器打开页面；通过 SSH 启动时只会打印宿主地址，因为本地转发地址由 SSH 客户端或编辑器管理。传入 `--no-open` 可仅运行服务器而不打开浏览器。通用 Harness 使用说明见 [Web UI 指南](docs/user/guide/index.zh.md)。
 
 常用命令：
 

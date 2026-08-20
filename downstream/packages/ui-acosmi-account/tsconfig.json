@@ -13,7 +13,6 @@
     { "path": "../../../packages/client/ui-model-selection" },
     { "path": "../../../packages/client/ui-settings" },
     { "path": "../../../packages/client/ui-slots" },
-    { "path": "../../../packages/client/web-react" },
     { "path": "../../../packages/client/locale" },
     { "path": "../desktop-carrier-electron/tsconfig.client.json" },
     { "path": "../api-remotes-acosmi/tsconfig.client.json" }

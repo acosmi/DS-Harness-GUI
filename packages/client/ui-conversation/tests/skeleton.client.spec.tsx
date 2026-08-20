@@ -5,7 +5,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { act, cleanup, fireEvent, render } from '@testing-library/react'
 import type { ReactNode } from 'react'
-import { bindSnapshotSelector } from '@deepseek-ai/dsh-client-web-react'
+import { bindSnapshotSelector } from '@deepseek-ai/dsh-client-test-runtime'
 import {
   createSnapshotStore, EMPTY_CHAT_SNAPSHOT, EMPTY_CONVERSATION_VIEWS,
 } from '@deepseek-ai/dsh-client-runtime/client'
@@ -23,6 +23,7 @@ import { en, zh } from '../src/client/locales.ts'
 import { ConversationRoot } from '../src/client/skeleton/ConversationRoot.tsx'
 import { ConversationSession, ConversationSessionHeader } from '../src/client/skeleton/ConversationSession.tsx'
 import { HeroShell } from '../src/client/skeleton/EmptyHero.tsx'
+import type { HeroShellProps } from '../src/client/skeleton/EmptyHero.tsx'
 import { InputBar } from '../src/client/skeleton/InputBar.tsx'
 import type { InputBarProps } from '../src/client/skeleton/InputBar.tsx'
 import type {
@@ -32,8 +33,8 @@ import type { ViewTab } from '../src/client/contract/views.ts'
 
 /** Machine-backed wiring over a sink spy. */
 function fakeWiring() {
-  const sink = vi.fn()
-  const shell = new SessionInputShell({ actx: {} as ClientContext, defaultSink: sink })
+  const sink = vi.fn(() => Promise.resolve({ kind: 'success' as const }))
+  const shell = new SessionInputShell({ actx: {} as ClientContext, defaultSink: sink, commandImages: { serialize: () => Promise.resolve([]), release: () => {}, unsupportedNotice: (token: string) => `${token.trim()} images-unsupported` } })
   return { wiring: shell, sink, shell }
 }
 
@@ -147,7 +148,9 @@ function mount(
     if (key === 'conversation.input.model' || key === 'conversation.input.plan') {
       seatOwners.push({ key, owner })
     }
-    if (key === 'conversation.hero.brand') return <>{opts?.fallback ?? null}</>
+    if (key === 'conversation.hero.brand' || key === 'conversation.hero.brand.mark') {
+      return <>{opts?.fallback ?? null}</>
+    }
     if (key === 'conversation.hero.workspace') { pickerOwner = owner; return null }
     if (key === 'conversation.session.header') {
       return (
@@ -263,18 +266,36 @@ function mount(
 }
 
 describe('Hero chrome', () => {
-  it('renders the English preview badge through the hero locale seat', () => {
-    const view = render(<HeroShell t={makeTranslate(en, commonEn)} />)
+  it('renders the English preview badge and layered brand fallbacks', () => {
+    const renderSlot = vi.fn<HeroShellProps['renderSlot']>((
+      _key: string,
+      _owner: object,
+      options?: { fallback?: ReactNode },
+    ) => options?.fallback ?? null)
+    const view = render(<HeroShell t={makeTranslate(en, commonEn)} renderSlot={renderSlot} />)
     expect(view.getByText('Into the Unknown')).toBeTruthy()
     expect(view.getByText('Preview')).toBeTruthy()
     expect(view.container.querySelector('svg')).toBeTruthy()
+    expect(renderSlot).toHaveBeenCalledTimes(2)
+    const markCall = renderSlot.mock.calls.find(call => call[0] === 'conversation.hero.brand.mark')
+    const brandCall = renderSlot.mock.calls.find(call => call[0] === 'conversation.hero.brand')
+    expect(brandCall?.[1]).toEqual({})
+    expect(brandCall?.[2]?.fallback).toBeTruthy()
+    const brandMarkOwner = markCall?.[1]
+    if (brandMarkOwner === undefined || !('size' in brandMarkOwner) || !('className' in brandMarkOwner)) {
+      throw new Error('hero brand-mark owner must provide size and className')
+    }
+    expect(brandMarkOwner.size).toBe(34)
+    expect(brandMarkOwner.className).toBeTypeOf('string')
+    expect(markCall?.[2]?.fallback).toBeTruthy()
+  })
 
-    view.rerender(
-      <HeroShell
-        t={makeTranslate(en, commonEn)}
-        brand={<img alt="" data-testid="product-hero-mark" />}
-      />,
-    )
+  it('lets the generic hero brand seat override the granular fallback', () => {
+    const renderSlot = ((key: string, _owner: object, options?: { fallback?: ReactNode }) =>
+      key === 'conversation.hero.brand'
+        ? <img alt="" data-testid="product-hero-mark" />
+        : options?.fallback ?? null) as HeroShellProps['renderSlot']
+    const view = render(<HeroShell t={makeTranslate(en, commonEn)} renderSlot={renderSlot} />)
     expect(view.getByTestId('product-hero-mark')).toBeTruthy()
     expect(view.container.querySelector('svg')).toBeNull()
   })
@@ -329,7 +350,7 @@ describe('ConversationRoot resident composer', () => {
     fireEvent.change(box, { target: { value: 'ordinary revised' } })
     expect(b.chat.store.getSnapshot().draft).toBe('ordinary revised')
     fireEvent.keyDown(box, { key: 'Enter' })
-    expect(b.sink).toHaveBeenCalledWith('ordinary revised', [], 'queue')
+    expect(b.sink).toHaveBeenCalledWith('ordinary revised', [], 'queue', expect.any(AbortSignal))
     expect((b.view.getByRole('button', { name: 'Child' }) as HTMLButtonElement).disabled).toBe(true)
     expect(b.view.queryByText('Root')).toBeNull()
   })

@@ -27,9 +27,9 @@ const SETTLED_EXPECTED = join(SNAPSHOT_DIR, 'settled.expected.md')
 const MODE = webSnapshotMode()
 // The question composer replaces the textarea, so fill → Queue row → Steer
 // must finish inside the first replay chunk window. At 15 ms that window is
-// shorter than Playwright's round trips; 100 ms supplies test-only headroom,
+// shorter than Playwright's round trips; 50 ms supplies test-only headroom,
 // while larger values lengthen all three replay scenarios linearly.
-const REPLAY_PACE_MS = 100
+const REPLAY_PACE_MS = 50
 
 const PROMPT = 'Use the ask_user_question tool to ask me exactly one question with id "checkpoint", question "Ready to continue?", header "Checkpoint", and options labeled "Yes" and "No". After I answer, reply with one short sentence acknowledging my answer and stop.'
 const STEER = 'Interjection: include the word BANANA in your final reply.'
@@ -106,9 +106,8 @@ describe('web e2e: mid-turn steering lands durably and visibly', () => {
     // this exact occurrence into the current turn's steering outbox.
     await input.fill(STEER)
     await input.press('Enter')
-    const queued = page.getByText(STEER, { exact: true })
-    await queued.waitFor({ timeout: 10_000 })
     const queuedRow = page.getByRole('listitem').filter({ hasText: STEER })
+    await queuedRow.waitFor({ timeout: 10_000 })
     const steerButton = queuedRow.getByRole('button', { name: 'Steer queued message' })
     await expect.poll(() => steerButton.isEnabled(), { timeout: 10_000 }).toBe(true)
     await steerButton.click({ timeout: 10_000 })
@@ -354,17 +353,16 @@ describe('web e2e: empty-draft Cmd+Enter steers the whole queue', () => {
       { timeout: 10_000 },
     ).toBe(2)
     expect(await page.locator('[data-queue-dock]').count()).toBe(0)
-    // The reasoning row streams independently of the steering handoff. Wait
-    // for the block to settle so the mid snapshot does not race its transient
-    // visually-hidden Running label while the question keeps the turn open.
-    await page.locator('[data-variant="think"][data-state="ok"]').first().waitFor({ timeout: 10_000 })
+    // The question composer proves the first model call and its usage have
+    // finished projecting while the tool still blocks the step. Waiting only
+    // for the reasoning row races the later usage and question projections.
+    const composer = page.locator('[data-question-key]')
+    await composer.waitFor({ timeout: 30_000 })
     const mid = await captureStableAria(page, '[class*="centerCol"]', scaffold.workspaceCwd)
     await compareOrRefreshGolden(STEER_ALL_MID, mid, MODE)
 
     // Answer the question; the step closes, the loop drains both steerings
     // into one next-step request, and the final reply obeys both markers.
-    const composer = page.locator('[data-question-key]')
-    await composer.waitFor({ timeout: 30_000 })
     await composer.getByRole('radio', { name: 'Yes' }).click()
     await composer.getByRole('radio', { name: 'Yes' }).press('Enter')
     await settled

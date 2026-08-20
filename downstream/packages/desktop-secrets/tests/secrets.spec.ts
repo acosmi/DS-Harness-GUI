@@ -55,7 +55,7 @@ async function vaultFixture(available = true): Promise<{
 
 describe('ProtectedSecretVault', () => {
   it('serializes concurrent changes into a deterministic encrypted envelope', async () => {
-    const { filename, vault } = await vaultFixture()
+    const { filename, storage, vault, binding } = await vaultFixture()
     await Promise.all([
       vault.set('credential:SECOND', 'two'),
       vault.set('credential:FIRST', 'one'),
@@ -65,6 +65,10 @@ describe('ProtectedSecretVault', () => {
     expect(await vault.get('credential:SECOND')).toBe('two')
     expect(await readFile(filename, 'utf8')).not.toContain('one')
     expect(await readFile(filename, 'utf8')).not.toContain('two')
+
+    const reopened = new ProtectedSecretVault(filename, storage, binding)
+    expect(await reopened.get('credential:FIRST')).toBe('one')
+    expect(await reopened.get('credential:SECOND')).toBe('two')
 
     await vault.delete('credential:FIRST')
     expect(await vault.get('credential:FIRST')).toBeUndefined()
@@ -106,7 +110,7 @@ describe('ProtectedSecretVault', () => {
     await expect(fixture.vault.set('valid:key', '')).rejects.toThrow(/empty secret/)
   })
 
-  it('keeps unsigned-development secrets in process memory without OS encryption', async () => {
+  it('keeps fallback secrets in process memory without OS encryption', async () => {
     const vault = new SessionSecretVault()
     expect(vault.persistence).toBe('session-memory')
     await vault.set('sdk:token', 'value')

@@ -4,14 +4,32 @@ import { createHash } from 'node:crypto'
 import { getAdapterForModel, ProviderFormat } from '@acosmi/sdk-ts'
 import type { ChatRequest, ManagedModel } from '@acosmi/sdk-ts'
 import { contentHasImage, LlmError } from '@deepseek-ai/dsh-llm'
-import type { ContentBlock, GenerateOptions, Message } from '@deepseek-ai/dsh-llm'
+import type { ContentBlock, GenerateOptions, Message, ReplayEnvelope } from '@deepseek-ai/dsh-llm'
+
+/** One provider content block paired with its native response index. */
+export interface AcosmiReplayBlock {
+  readonly index: number
+  readonly content: Readonly<Record<string, unknown>>
+}
+
+/** Response-level Acosmi replay metadata and provider-only content blocks. */
+interface AcosmiReplayResponse {
+  readonly format: 'acosmi-anthropic-v2'
+  readonly version: 2
+  readonly model: string
+  readonly hidden: readonly AcosmiReplayBlock[]
+}
 
 /** Lossless provider state retained with a successful assistant message. */
-export interface AcosmiReplayState {
-  readonly format: 'acosmi-anthropic-v1'
-  readonly version: 1
+export interface AcosmiReplayState extends ReplayEnvelope {
+  readonly response: AcosmiReplayResponse
+  readonly blocks: readonly AcosmiReplayBlock[]
+}
+
+interface ValidatedAcosmiReplay {
   readonly model: string
   readonly content: readonly Record<string, unknown>[]
+  readonly visible: readonly Record<string, unknown>[]
 }
 
 /** Convert one Harness request without adding prompt text or hidden tools. */
@@ -83,7 +101,7 @@ function serializeMessage(
   message: Message,
   targetModel: string,
   format: ProviderFormat,
-  replay: AcosmiReplayState | undefined,
+  replay: ValidatedAcosmiReplay | undefined,
   omittedToolResults: ReadonlySet<string>,
 ): Record<string, unknown>[] {
   if (contentHasImage(message.content)) {
@@ -100,7 +118,7 @@ function serializeMessage(
       if (replay.model === targetModel && canReplayExactAnthropic(replay.content)) {
         return [{ role: 'assistant', content: structuredClone(replay.content) }]
       }
-      const content = serializePortableAssistantBlocks(message.content, replay.content)
+      const content = serializePortableAssistantBlocks(message.content, replay.visible)
       return content.length === 0 ? [] : [{ role: 'assistant', content }]
     }
     return [{ role: 'assistant', content: serializeAssistantBlocks(message.content) }]
@@ -135,7 +153,7 @@ function serializeMessage(
 function serializeOpenAIMessage(
   message: Message,
   targetModel: string,
-  replay: AcosmiReplayState | undefined,
+  replay: ValidatedAcosmiReplay | undefined,
   omittedToolResults: ReadonlySet<string>,
 ): Record<string, unknown>[] {
   if (message.role === 'assistant') {
@@ -188,13 +206,13 @@ function serializeOpenAIMessage(
 
 function serializeOpenAIAssistant(
   message: Message,
-  replay: AcosmiReplayState | undefined,
+  replay: ValidatedAcosmiReplay | undefined,
   portable: boolean,
 ): Record<string, unknown> | undefined {
   let text = ''
   let reasoning = ''
   const toolCalls: Record<string, unknown>[] = []
-  const visibleReplay = replay === undefined ? undefined : visibleReplayBlocks(replay.content)
+  const visibleReplay = replay?.visible
   for (const [index, block] of message.content.entries()) {
     const replayBlock = visibleReplay?.[index]
     if (block.type !== 'reasoning' && replayBlock?.acosmi_ephemeral === true) continue
@@ -234,8 +252,8 @@ function serializeOpenAIAssistant(
   }
 }
 
-function validateAssistantReplays(messages: readonly Message[]): ReadonlyMap<Message, AcosmiReplayState> {
-  const replays = new Map<Message, AcosmiReplayState>()
+function validateAssistantReplays(messages: readonly Message[]): ReadonlyMap<Message, ValidatedAcosmiReplay> {
+  const replays = new Map<Message, ValidatedAcosmiReplay>()
   for (const message of messages) {
     if (message.role !== 'assistant') continue
     const source = message.source.kind === 'model' ? message.source : undefined
@@ -244,7 +262,7 @@ function validateAssistantReplays(messages: readonly Message[]): ReadonlyMap<Mes
     if (source?.provider !== 'acosmi' || replay.model !== source.model) {
       throw invalidReplay('model does not match the assistant source')
     }
-    if (!replayMatches(message.content, replay.content)) {
+    if (!replayMatches(message.content, replay.visible)) {
       throw invalidReplay('content does not match the durable assistant projection')
     }
     replays.set(message, replay)
@@ -252,10 +270,10 @@ function validateAssistantReplays(messages: readonly Message[]): ReadonlyMap<Mes
   return replays
 }
 
-function collectEphemeralToolCallIds(replays: ReadonlyMap<Message, AcosmiReplayState>): ReadonlySet<string> {
+function collectEphemeralToolCallIds(replays: ReadonlyMap<Message, ValidatedAcosmiReplay>): ReadonlySet<string> {
   const result = new Set<string>()
   for (const [message, replay] of replays) {
-    const visibleReplay = visibleReplayBlocks(replay.content)
+    const visibleReplay = replay.visible
     for (const [index, block] of message.content.entries()) {
       if (block.type === 'tool-call' && visibleReplay[index]?.acosmi_ephemeral === true) {
         result.add(block.id)
@@ -300,9 +318,8 @@ function serializeAssistantBlocks(blocks: readonly ContentBlock[]): Record<strin
 /** Remove provider-signed reasoning while retaining portable assistant history after a model switch. */
 function serializePortableAssistantBlocks(
   blocks: readonly ContentBlock[],
-  replay: readonly Record<string, unknown>[],
+  visibleReplay: readonly Record<string, unknown>[],
 ): Record<string, unknown>[] {
-  const visibleReplay = visibleReplayBlocks(replay)
   return blocks.flatMap((block, index): Record<string, unknown>[] => {
     const replayBlock = visibleReplay[index]
     if (replayBlock === undefined) throw invalidReplay('portable history does not match its visible projection')
@@ -377,20 +394,47 @@ function resolveEffort(options: GenerateOptions, model: ManagedModel): ChatReque
   )
 }
 
-function readReplayState(value: unknown): AcosmiReplayState | undefined {
+function readReplayState(value: unknown): ValidatedAcosmiReplay | undefined {
   if (value === undefined) return undefined
-  if (!isExactRecord(value, ['format', 'version', 'model', 'content'])
-    || value.format !== 'acosmi-anthropic-v1'
-    || value.version !== 1
-    || typeof value.model !== 'string'
-    || value.model.length === 0
-    || !Array.isArray(value.content)) throw invalidReplay('invalid state header')
-  return {
-    format: 'acosmi-anthropic-v1',
-    version: 1,
-    model: value.model,
-    content: value.content.map((block, index) => readReplayBlock(block, index)),
+  if (!isExactRecord(value, ['response', 'blocks']) || !Array.isArray(value.blocks)) {
+    throw invalidReplay('invalid replay envelope')
   }
+  const response = value.response
+  if (!isExactRecord(response, ['format', 'version', 'model', 'hidden'])
+    || response.format !== 'acosmi-anthropic-v2'
+    || response.version !== 2
+    || typeof response.model !== 'string'
+    || response.model.length === 0
+    || !Array.isArray(response.hidden)) throw invalidReplay('invalid response metadata')
+  const visible = value.blocks.map((entry, index) => readIndexedReplayBlock(entry, index, false))
+  const hidden = response.hidden.map((entry, index) => readIndexedReplayBlock(entry, index, true))
+  const indexes = new Set<number>()
+  for (const entry of [...visible, ...hidden]) {
+    if (indexes.has(entry.index)) throw invalidReplay(`duplicate provider block index ${String(entry.index)}`)
+    indexes.add(entry.index)
+  }
+  const content = [...visible, ...hidden]
+    .sort((left, right) => left.index - right.index)
+    .map(entry => entry.content)
+  return {
+    model: response.model,
+    content,
+    visible: visible.map(entry => entry.content),
+  }
+}
+
+function readIndexedReplayBlock(value: unknown, position: number, hidden: boolean): AcosmiReplayBlock {
+  if (!isExactRecord(value, ['index', 'content'])
+    || !Number.isSafeInteger(value.index)
+    || (value.index as number) < 0) {
+    throw invalidReplay(`block metadata ${String(position)} is invalid`)
+  }
+  const index = value.index as number
+  const content = readReplayBlock(value.content, index)
+  if (isProviderOnlyReplayBlock(content) !== hidden) {
+    throw invalidReplay(`block ${String(index)} is in the wrong envelope half`)
+  }
+  return { index, content }
 }
 
 function readReplayBlock(value: unknown, index: number): Record<string, unknown> {
@@ -489,6 +533,12 @@ function readReplayBlock(value: unknown, index: number): Record<string, unknown>
   }
 }
 
+function isProviderOnlyReplayBlock(block: Readonly<Record<string, unknown>>): boolean {
+  return block.type === 'redacted_thinking'
+    || block.type === 'server_tool_use'
+    || block.type === 'web_search_tool_result'
+}
+
 function isExactRecord(value: unknown, keys: readonly string[]): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
     && hasOnlyKeys(value as Record<string, unknown>, keys)
@@ -527,14 +577,8 @@ function invalidReplay(detail: string): LlmError {
 }
 
 function replayMatches(blocks: readonly ContentBlock[], replay: readonly Record<string, unknown>[]): boolean {
-  const visibleReplay = visibleReplayBlocks(replay)
-  if (visibleReplay.length !== blocks.length) return false
-  return blocks.every((block, index) => replayBlockMatches(block, visibleReplay[index]))
-}
-
-function visibleReplayBlocks(replay: readonly Record<string, unknown>[]): Record<string, unknown>[] {
-  return replay.filter(block => block.type !== 'redacted_thinking'
-    && block.type !== 'server_tool_use' && block.type !== 'web_search_tool_result')
+  if (replay.length !== blocks.length) return false
+  return blocks.every((block, index) => replayBlockMatches(block, replay[index]))
 }
 
 function canReplayExactAnthropic(replay: readonly Record<string, unknown>[]): boolean {

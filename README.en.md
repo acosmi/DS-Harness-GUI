@@ -56,7 +56,7 @@ pnpm run build
 pnpm dsh web
 ```
 
-`pnpm dsh web` starts the Web UI at `http://127.0.0.1:3080` by default. See the [Web UI guide](docs/user/guide/index.md) for general Harness usage.
+`pnpm run build` prepares the repository artifacts; `pnpm dsh web` uses those artifacts without rebuilding. It starts the Web UI at `http://127.0.0.1:3080` by default and opens it in the default browser for a local launch. An SSH launch only prints the host address because the SSH client or editor owns the local forwarded address. Pass `--no-open` to run the server without opening a browser. See the [Web UI guide](docs/user/guide/index.md) for general Harness usage.
 
 Common commands:
 

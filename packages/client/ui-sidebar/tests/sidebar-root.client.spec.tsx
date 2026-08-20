@@ -3,7 +3,8 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import type { ReactNode } from 'react'
 import type {
-  SidebarBrandOwnerProps, SidebarFooterActionOwnerProps, SidebarRootComponentProps,
+  SidebarBrandMarkOwnerProps, SidebarBrandNameOwnerProps, SidebarBrandOwnerProps,
+  SidebarFooterActionOwnerProps, SidebarRootComponentProps,
   SidebarSectionOwnerProps,
   SidebarSettingsOwnerProps,
 } from '../src/client/contract/slots.ts'
@@ -16,6 +17,7 @@ const t: SidebarRootComponentProps['t'] = key => (en as Record<string, string>)[
 
 afterEach(() => {
   cleanup()
+  vi.unstubAllEnvs()
   vi.useRealTimers()
 })
 
@@ -37,6 +39,8 @@ function mountShell({
   let regionOwner: SidebarSectionOwnerProps | undefined
   let settingsOwner: SidebarSettingsOwnerProps | undefined
   let footerActionOwner: SidebarFooterActionOwnerProps | undefined
+  const brandMark = <span data-testid="custom-brand-mark">M</span>
+  const brandName = <span data-testid="custom-brand-name">Custom Brand</span>
   let current = { collapsed, width }
   const root = () => (
     <SidebarRoot
@@ -45,13 +49,15 @@ function mountShell({
       startSession={startSession} toggleSidebar={toggleSidebar} t={t}
       renderSlot={((
         key: string,
-        owner: SidebarBrandOwnerProps | SidebarFooterActionOwnerProps | SidebarSectionOwnerProps
-          | SidebarSettingsOwnerProps,
+        owner: SidebarBrandMarkOwnerProps | SidebarBrandNameOwnerProps | SidebarBrandOwnerProps
+          | SidebarFooterActionOwnerProps | SidebarSectionOwnerProps | SidebarSettingsOwnerProps,
         opts?: { fallback?: ReactNode },
       ) => {
         if (key === 'sidebar.brand') {
           return brand?.(owner as SidebarBrandOwnerProps) ?? opts?.fallback
         }
+        if (key === 'sidebar.brand.mark') return brandMark
+        if (key === 'sidebar.brand.name') return brandName
         if (key === 'sidebar.settings') {
           settingsOwner = owner as SidebarSettingsOwnerProps
           return <div data-testid="settings-seat" data-wide={settingsOwner.wide} />
@@ -105,6 +111,8 @@ describe('SidebarRoot shell', () => {
 
   it('routes New Session (capsule + wordmark) and the column toggle', () => {
     const b = mountShell()
+    expect(screen.getByTestId('custom-brand-mark')).toBeTruthy()
+    expect(screen.getByTestId('custom-brand-name')).toBeTruthy()
     // Expanded, both the wordmark and the capsule start a session.
     const starters = screen.getAllByRole('button', { name: 'New session' })
     expect(starters).toHaveLength(2)
@@ -112,6 +120,21 @@ describe('SidebarRoot shell', () => {
     expect(b.startSession).toHaveBeenCalledTimes(2)
     fireEvent.click(screen.getByRole('button', { name: 'Collapse sidebar' }))
     expect(b.toggleSidebar).toHaveBeenCalledOnce()
+  })
+
+  it('renders generic brand fallbacks when no package fills the slots', () => {
+    vi.stubEnv('DSH_CLIENT_COMMIT_HASH', '0123456')
+    const { container } = render(<SidebarRoot
+      collapsed={false} width={300}
+      useSessions={neverHook} useWorkspaces={neverHook}
+      startSession={vi.fn()} toggleSidebar={vi.fn()} t={t}
+      renderSlot={((_key: string, _owner: unknown, options?: { fallback?: ReactNode }) =>
+        options?.fallback ?? null) as SidebarRootComponentProps['renderSlot']}
+    />)
+
+    expect(screen.getByText('DSH Local Build')).toBeTruthy()
+    expect(screen.getByText('0123456')).toBeTruthy()
+    expect(container.querySelector('svg')).not.toBeNull()
   })
 
   it('hands the region its wide flag and clamps expandSidebar to the collapsed state', () => {

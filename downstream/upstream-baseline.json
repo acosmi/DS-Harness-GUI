@@ -8,7 +8,7 @@
   },
   "upstream": {
     "repository": "https://github.com/deepseek-ai/deepseek-harness",
-    "commit": "47f943859bef60e4160492346772ded9b24f765a"
+    "commit": "141eb6fef83422698aef7a981029e843e8161534"
   },
   "acosmiSdk": {
     "package": "@acosmi/sdk-ts",
@@ -48,7 +48,7 @@
   },
   "lockfile": {
     "path": "pnpm-lock.yaml",
-    "sha256": "949783e922294df98253733e6c366f845b6ae9cebf2dc2608a0d7c97124c2bf8"
+    "sha256": "b106b45c23bcbbc73db1222bb4b7dc6b973122f352bae00a4afbffa6701b5915"
   },
   "inventories": {
     "identity": "downstream/release/identity.json",
@@ -57,7 +57,7 @@
     "externalInputs": "downstream/release/external-inputs.json",
     "responsibilities": "downstream/release/responsibilities.json"
   },
-  "synchronizedAt": "2026-08-15",
+  "synchronizedAt": "2026-08-20",
   "compatibility": {
     "status": "implementation-in-progress",
     "verifiedAt": null,

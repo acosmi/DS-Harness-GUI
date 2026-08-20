@@ -16,7 +16,7 @@ import {
   mapAcosmiToolNameCollisionError,
   mapAcosmiWindowLimitError,
 } from './errors.ts'
-import type { AcosmiReplayState } from './serialize.ts'
+import type { AcosmiReplayBlock, AcosmiReplayState } from './serialize.ts'
 
 interface OpenBlock {
   readonly type:
@@ -43,9 +43,9 @@ export async function* translateAcosmiStream(
 ): AsyncIterable<StreamChunk> {
   const blocks = new Map<number, OpenBlock>()
   const replay = new Map<number, Record<string, unknown>>()
+  const visibleReplayOrder: number[] = []
   let usage: TokenUsage | undefined
   let finish: FinishReason | undefined
-  let visibleBlocks = 0
   let sawStop = false
 
   for await (const event of events) {
@@ -76,9 +76,16 @@ export async function* translateAcosmiStream(
         const raw = objectField(payload, 'content_block')
         const block = openBlock(raw, event, index)
         blocks.set(index, block)
-        if (block.type === 'text') yield { type: 'block-start', index, blockType: 'text' }
-        else if (block.type === 'thinking') yield { type: 'block-start', index, blockType: 'reasoning' }
-        else if (block.type === 'tool_use') yield { type: 'block-start', index, blockType: 'tool-call' }
+        if (block.type === 'text') {
+          visibleReplayOrder.push(index)
+          yield { type: 'block-start', index, blockType: 'text' }
+        } else if (block.type === 'thinking') {
+          visibleReplayOrder.push(index)
+          yield { type: 'block-start', index, blockType: 'reasoning' }
+        } else if (block.type === 'tool_use') {
+          visibleReplayOrder.push(index)
+          yield { type: 'block-start', index, blockType: 'tool-call' }
+        }
         break
       }
       case 'content_block_delta': {
@@ -129,7 +136,6 @@ export async function* translateAcosmiStream(
         const ended = closeBlock(block)
         replay.set(index, ended.raw)
         if (ended.content !== undefined) {
-          visibleBlocks++
           yield { type: 'block-end', index, block: ended.content }
         }
         break
@@ -147,9 +153,21 @@ export async function* translateAcosmiStream(
         if (blocks.size !== 0) throw malformed('message stopped with open content blocks')
         if (finish === undefined) throw malformed('message stopped without a finish reason')
         if (usage !== undefined) yield { type: 'usage', usage }
-        const content = [...replay.entries()].sort(([left], [right]) => left - right).map(([, block]) => block)
-        const replayState: AcosmiReplayState = { format: 'acosmi-anthropic-v1', version: 1, model, content }
-        const reason: FinishReason = finish.kind === 'stop' && visibleBlocks === 0
+        const visibleIndexes = new Set(visibleReplayOrder)
+        const hidden = [...replay.entries()]
+          .filter(([index]) => !visibleIndexes.has(index))
+          .sort(([left], [right]) => left - right)
+          .map(([index, content]): AcosmiReplayBlock => ({ index, content }))
+        const replayBlocks = visibleReplayOrder.map((index): AcosmiReplayBlock => {
+          const content = replay.get(index)
+          if (content === undefined) throw malformed(`visible content block ${String(index)} has no replay data`)
+          return { index, content }
+        })
+        const replayState: AcosmiReplayState = {
+          response: { format: 'acosmi-anthropic-v2', version: 2, model, hidden },
+          blocks: replayBlocks,
+        }
+        const reason: FinishReason = finish.kind === 'stop' && visibleReplayOrder.length === 0
           ? {
               kind: 'error',
               failure: {

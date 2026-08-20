@@ -201,7 +201,7 @@ export class ProtectedSecretVault implements DesktopSecretVault {
   }
 }
 
-/** Process-local vault for unsigned development builds; values never reach disk or Keychain. */
+/** Process-local fallback when the runtime cannot establish protected persistence. */
 export class SessionSecretVault implements DesktopSecretVault {
   readonly persistence = 'session-memory' as const
   private readonly values = new Map<string, string>()

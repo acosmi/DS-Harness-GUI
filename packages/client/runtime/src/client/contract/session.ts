@@ -12,7 +12,7 @@ import type {
   MessageId, PromptContentPart, QueueAction, RpcResult, SessionId,
 } from '@deepseek-ai/dsh-api-remotes/client'
 import type { RemoteResult } from '@deepseek-ai/dsh-typert-protocol'
-import type { ConversationSnapshot } from '../sessions/conversation.ts'
+import type { ConversationSnapshot } from '../conversation-snapshot.ts'
 import type { ObservableSnapshot } from './store.ts'
 
 /** Key-addressed projection read face (the useProjection resolution path; see ProjectionValueStore). */
@@ -38,7 +38,11 @@ export interface ISession {
    * @param mode - 'queue' appends a turn; 'steer' interrupts the running one.
    * @returns acceptance, or the business error (also mirrored into snapshot.promptError).
    */
-  prompt(content: PromptContentPart[], mode: 'queue' | 'steer'): Promise<RpcResult<{ accepted: true }>>
+  prompt(
+    content: PromptContentPart[],
+    mode: 'queue' | 'steer',
+    signal?: AbortSignal,
+  ): Promise<RpcResult<{ accepted: true }>>
   /**
    * Resolve one durable image referenced by this session.
    * @param attachmentId - opaque id found in the folded session log.

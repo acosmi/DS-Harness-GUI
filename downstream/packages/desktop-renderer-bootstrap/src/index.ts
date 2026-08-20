@@ -14,6 +14,7 @@ export const DESKTOP_CLIENT_ALLOWLIST = [
   '@deepseek-ai/dsh-api-gateway',
   '@deepseek-ai/dsh-api-remotes',
   '@deepseek-ai/dsh-client-runtime',
+  '@deepseek-ai/dsh-client-ui-renderer',
   '@deepseek-ai/dsh-cordis-client-runner',
   '@deepseek-ai/dsh-client-ui-theme',
   '@deepseek-ai/dsh-client-locale',
@@ -110,9 +111,13 @@ interface ClientDeclaration {
 /**
  * Resolve and hash every admitted client bundle from the application dependency graph.
  * @param anchorUrl - `import.meta.url` of the composing application config.
+ * @param shellStaticModules - exact module specifiers seeded by the composing shell.
  * @returns immutable manifest and assets for Vite emission.
  */
-export function buildDesktopRendererAssets(anchorUrl: string): DesktopRendererAssets {
+export function buildDesktopRendererAssets(
+  anchorUrl: string,
+  shellStaticModules: readonly string[],
+): DesktopRendererAssets {
   const require = createRequire(anchorUrl)
   const assets: DesktopClientAsset[] = []
   const entries: DesktopBootEntry[] = []
@@ -140,7 +145,7 @@ export function buildDesktopRendererAssets(anchorUrl: string): DesktopRendererAs
       ...(pkg.client.immediately === true ? { immediately: true } : {}),
     })
   }
-  assertClosedInjectionGraph(entries, require)
+  assertClosedInjectionGraph(entries, shellStaticModules)
   return {
     graph: { rev: shortHash(JSON.stringify(entries)), entries },
     assets,
@@ -149,21 +154,15 @@ export function buildDesktopRendererAssets(anchorUrl: string): DesktopRendererAs
 
 function assertClosedInjectionGraph(
   entries: readonly DesktopBootEntry[],
-  require: ReturnType<typeof createRequire>,
+  shellStaticModules: readonly string[],
 ): void {
   const services = new Set(entries.map(entry => entry.id))
-  const shellPackage = JSON.parse(
-    readFileSync(require.resolve('@deepseek-ai/dsh-client-web/package.json'), 'utf8'),
-  ) as Record<string, unknown>
-  const shellDependencies = new Set([
-    ...objectKeys(shellPackage.dependencies),
-    ...objectKeys(shellPackage.peerDependencies),
-  ])
+  const staticModules: ReadonlySet<string> = new Set(shellStaticModules)
   const missing = new Map<string, string[]>()
   for (const entry of entries) {
     for (const service of entry.inject ?? []) {
       if (services.has(service) || !service.startsWith('@')
-        || isShellStaticPackage(service, shellDependencies, require)) continue
+        || staticModules.has(service)) continue
       const consumers = missing.get(service) ?? []
       consumers.push(entry.id)
       missing.set(service, consumers)
@@ -174,22 +173,6 @@ function assertClosedInjectionGraph(
     .map(([service, consumers]) => `${service} required by ${consumers.join(', ')}`)
     .join('; ')
   throw new Error(`desktop renderer allowlist has unresolved package services: ${details}`)
-}
-
-function isShellStaticPackage(
-  id: string,
-  shellDependencies: ReadonlySet<string>,
-  require: ReturnType<typeof createRequire>,
-): boolean {
-  if (!shellDependencies.has(id)) return false
-  const pkg = JSON.parse(readFileSync(require.resolve(`${id}/package.json`), 'utf8')) as Record<string, unknown>
-  const dsh = pkg.dsh
-  return typeof dsh !== 'object' || dsh === null
-    || (dsh as Record<string, unknown>).client === undefined
-}
-
-function objectKeys(value: unknown): string[] {
-  return typeof value === 'object' && value !== null ? Object.keys(value) : []
 }
 
 function parsePackageJson(
