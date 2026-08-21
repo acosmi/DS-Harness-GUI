@@ -45,6 +45,10 @@ describe('desktop Harness composition', () => {
 
   it('keeps each channel account patch complete because Loader replaces config objects', () => {
     const bundleRoot = resolve(import.meta.dirname, '../../../bundles/desktop')
+    const appManifest = JSON.parse(readFileSync(
+      resolve(bundleRoot, '../../apps/desktop/package.json'),
+      'utf8',
+    )) as { version: string }
     for (const [channel, tokenKey] of [
       ['stable', 'com.acosmi.dsharness.gui:stable:profile-default:https://acosmi.com:account-current'],
       ['canary', 'com.acosmi.dsharness.gui.canary:canary:profile-default:https://acosmi.com:account-current'],
@@ -62,7 +66,7 @@ describe('desktop Harness composition', () => {
           refreshJitterMs: 30_000,
           refreshTimeoutMs: 30_000,
           projectionPollIntervalMs: 60_000,
-          productVersion: '0.1.0-dev.1',
+          productVersion: appManifest.version,
         },
       }])
     }

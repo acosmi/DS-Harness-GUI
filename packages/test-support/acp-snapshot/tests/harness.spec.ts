@@ -59,6 +59,7 @@ async function scenario(behavior: object): Promise<{ dir: string; fixtureFile: s
 }
 
 const boot: InputStep[] = [{ op: 'initialize' }, { op: 'newSession' }]
+const PERSISTED_FAILURE_TIMEOUT_MS = 1_000
 
 it('keeps scenario-owned snapshot spill root length stable across platforms', () => {
   const fixtureFile = '/fixtures/scenario/session.jsonl'
@@ -946,11 +947,13 @@ describe('runScenario', () => {
         steps: [
           ...boot,
           { op: 'promptAndCancel', text: 'hang' },
-          { op: 'waitForTitleAfterTurnEnd', timeoutMs: 20 },
+          { op: 'waitForTitleAfterTurnEnd', timeoutMs: PERSISTED_FAILURE_TIMEOUT_MS },
         ],
       },
       { agent: AGENT, mode: 'replay', fixtureFile },
-    )).rejects.toThrow(/did not persist session\/title after turn\/end within 20ms/)
+    )).rejects.toThrow(new RegExp(
+      `did not persist session/title after turn/end within ${PERSISTED_FAILURE_TIMEOUT_MS}ms`,
+    ))
   })
 
   it('waitForEventAfterTurnEnd holds the app for a typed post-boundary record and times out otherwise', { timeout: 20_000 }, async () => {
@@ -995,11 +998,13 @@ describe('runScenario', () => {
         steps: [
           ...boot,
           { op: 'promptAndCancel', text: 'hang' },
-          { op: 'waitForEventAfterTurnEnd', type: 'user/message', timeoutMs: 20 },
+          { op: 'waitForEventAfterTurnEnd', type: 'user/message', timeoutMs: PERSISTED_FAILURE_TIMEOUT_MS },
         ],
       },
       { agent: AGENT, mode: 'replay', fixtureFile: early.fixtureFile },
-    )).rejects.toThrow(/did not persist user\/message after turn\/end within 20ms/)
+    )).rejects.toThrow(new RegExp(
+      `did not persist user/message after turn/end within ${PERSISTED_FAILURE_TIMEOUT_MS}ms`,
+    ))
   })
 
   it('promptExpectError swallows a model-error response as the expected outcome', { timeout: 20_000 }, async () => {

@@ -1,4 +1,6 @@
+import { readFileSync } from 'node:fs'
 import path from 'node:path'
+import yaml from 'js-yaml'
 import { describe, expect, it } from 'vitest'
 
 const {
@@ -19,7 +21,13 @@ type CredentialFamily = 'api-key' | 'apple-id' | 'keychain-profile'
 type ReleaseMode = 'development' | 'candidate' | 'stable'
 
 const MAC_IDENTITY = 'A6616C59EA24F8DE1D97ECC8081AE64E3D7D6F61'
-const PRODUCT_ICON = path.resolve(import.meta.dirname, '../../../..', 'assets/branding/dsh-gui-whale-browser-logo-v6.png')
+const REPOSITORY_ROOT = path.resolve(import.meta.dirname, '../../../..')
+const PRODUCT_ICON = path.join(REPOSITORY_ROOT, 'assets/branding/dsh-gui-whale-browser-logo-v6.png')
+const PRODUCT_PATCH_PATHS = [
+  'downstream/bundles/desktop/cordis.patch.yml',
+  'downstream/bundles/desktop/cordis.stable.patch.yml',
+  'downstream/bundles/desktop/cordis.canary.patch.yml',
+] as const
 const builderConfigModule = await import('../electron-builder.config.cjs') as {
   default: {
     mac: { icon: string; target: string[] }
@@ -27,7 +35,31 @@ const builderConfigModule = await import('../electron-builder.config.cjs') as {
   }
 }
 
+function collectProductVersions(value: unknown): string[] {
+  if (Array.isArray(value)) return value.flatMap(collectProductVersions)
+  if (value === null || typeof value !== 'object') return []
+  return Object.entries(value).flatMap(([key, child]) => {
+    if (key === 'productVersion') return typeof child === 'string' ? [child] : []
+    return collectProductVersions(child)
+  })
+}
+
 describe('desktop build environment', () => {
+  it('keeps the package and every shipped product version equal', () => {
+    const manifest: unknown = JSON.parse(readFileSync(
+      path.join(REPOSITORY_ROOT, 'downstream/apps/desktop/package.json'),
+      'utf8',
+    ))
+    if (manifest === null || typeof manifest !== 'object' || !('version' in manifest)
+      || typeof manifest.version !== 'string') {
+      throw new Error('desktop package manifest is missing its version')
+    }
+    const configuredVersions = PRODUCT_PATCH_PATHS.flatMap(relativePath => collectProductVersions(
+      yaml.load(readFileSync(path.join(REPOSITORY_ROOT, relativePath), 'utf8')),
+    ))
+    expect(configuredVersions).toEqual(PRODUCT_PATCH_PATHS.map(() => manifest.version))
+  })
+
   it('uses explicit channel and release-mode values with safe development defaults', () => {
     expect(desktopChannel({})).toBe('stable')
     expect(desktopChannel({ DSH_DESKTOP_CHANNEL: 'canary' })).toBe('canary')
