@@ -44,6 +44,7 @@ import {
   handleRendererUpdateCheck,
 } from './renderer-ipc.ts'
 import { createDesktopUtilityEnvironment } from './environment.ts'
+import { resolveDesktopSecretPersistence } from './secret-persistence.ts'
 
 const CSP = [
   "default-src 'none'",
@@ -127,12 +128,13 @@ export async function runDesktopMain(options: DesktopMainOptions): Promise<void>
 
   let window: BrowserWindow | undefined
   let broker: DesktopUtilityBroker | undefined
+  let vaultPersistence: DesktopSecretPersistence | undefined
   let stopping = false
   const partition = `persist:dsh-gui-${options.channel}`
   const openWindow = (): void => {
-    if (broker === undefined) return
+    if (broker === undefined || vaultPersistence === undefined) return
     window = createDesktopWindow(options, broker, partition)
-    installIpcHandlers(window, broker, options)
+    installIpcHandlers(window, broker, options, vaultPersistence)
   }
   app.on('second-instance', () => {
     if (window === undefined || window.isDestroyed()) return
@@ -174,6 +176,7 @@ export async function runDesktopMain(options: DesktopMainOptions): Promise<void>
       mkdir(harnessHome, { recursive: true, mode: 0o700 }),
     ])
     const vault = await createSecretVault(options, userData)
+    vaultPersistence = vault.persistence
     const appSession = electronSession.fromPartition(partition)
     await installResourceProtocol(appSession, options.rendererRoot, options.rendererAssetManifest)
     hardenSession(appSession)
@@ -272,6 +275,7 @@ function installIpcHandlers(
   window: BrowserWindow,
   broker: DesktopUtilityBroker,
   options: DesktopMainOptions,
+  vaultPersistence: DesktopSecretPersistence,
 ): void {
   removeIpcHandlers()
   ipcMain.handle(IPC.request, (event, raw) => handleRendererUnary(event, window, broker, raw))
@@ -282,7 +286,7 @@ function installIpcHandlers(
     handleRendererStreamNext(event, window, broker, activeStreams, raw)
   ))
   ipcMain.handle(IPC.productInfo, event => (
-    handleRendererProductInfo(event, window, () => productInfo(options))
+    handleRendererProductInfo(event, window, () => productInfo(options, vaultPersistence))
   ))
   ipcMain.handle(IPC.checkForUpdates, event => (
     handleRendererUpdateCheck(event, window, () => checkForUpdates(options))
@@ -385,18 +389,27 @@ function contentType(filename: string): string {
   return types[extension] ?? 'application/octet-stream'
 }
 
-function productInfo(options: DesktopMainOptions): DesktopProductInfo {
+function productInfo(
+  options: DesktopMainOptions,
+  vaultPersistence: DesktopSecretPersistence,
+): DesktopProductInfo {
   return {
     ...options.productInfo,
     version: app.getVersion(),
     electronVersion: process.versions.electron,
-    secretStorage: secretPersistence(options),
+    secretStorage: vaultPersistence,
     updateMode: options.update?.mode ?? 'disabled',
   }
 }
 
 async function createSecretVault(options: DesktopMainOptions, userData: string): Promise<DesktopSecretVault> {
-  if (secretPersistence(options) === 'session-memory') return new SessionSecretVault()
+  const persistence = resolveDesktopSecretPersistence(options.productInfo.signing, process.platform, {
+    encryptionAvailable: safeStorage.isEncryptionAvailable(),
+    ...(process.platform === 'linux'
+      ? { linuxBackend: safeStorage.getSelectedStorageBackend() }
+      : {}),
+  })
+  if (persistence === 'session-memory') return new SessionSecretVault()
   const identity = options.identity
   const profileId = await loadOrCreateVaultProfileId(join(userData, identity.profileFilename))
   return new ProtectedSecretVault(join(userData, identity.vaultFilename), safeStorage, {
@@ -405,10 +418,6 @@ async function createSecretVault(options: DesktopMainOptions, userData: string):
     issuer: identity.oauthIssuer,
     profileId,
   })
-}
-
-function secretPersistence(options: DesktopMainOptions): DesktopSecretPersistence {
-  return options.productInfo.signing === 'signed' ? 'os-protected' : 'session-memory'
 }
 
 async function checkForUpdates(options: DesktopMainOptions): Promise<DesktopUpdateStatus> {

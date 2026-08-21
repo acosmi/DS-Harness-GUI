@@ -4,6 +4,8 @@
 
 DSH-GUI 私有客户端插件，提供 Acosmi 账户引导、账户状态、会员、额度和基于证据显示的额度权益卡。界面只接收生成的客户端安全账户 DTO；令牌、账户标识和原始账单响应始终留在 Host 工具进程中。
 
+slot 注册通过 `inject.hooks.snapshot` 传递账户 store；React 绑定由 UI renderer 负责，并向组件提供 `useSnapshot`。因此账户插件只依赖 slot 约定，不依赖具体 renderer 实现。
+
 数字对比采用失败关闭策略。只有 `account-acosmi` 根据类型化订阅计划提供当前 `quotaMultiplierClaim` 时，卡片才显示倍率；其他情况只显示中性会员文案。
 
 该包同时保留官方 DeepSeek API 密钥作为另一条引导路径，并显示社区发行版声明。

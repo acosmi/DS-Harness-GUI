@@ -76,6 +76,16 @@
   color: var(--dsw-alias-label-primary);
 }
 
+.brandFallback {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.brandMark {
+  color: inherit;
+}
+
 .brandHitbox > :not([data-slot]),
 .brandHitbox > [data-slot] > * {
   flex: none;

@@ -7,7 +7,8 @@ import { SidebarRoot } from './SidebarRoot.tsx'
 import { en, zh, type SidebarKey } from './locales.ts'
 
 export type {
-  SidebarBrandOwnerProps, SidebarFooterActionOwnerProps, SidebarRootComponentProps, SidebarRootInjected,
+  SidebarBrandMarkOwnerProps, SidebarBrandNameOwnerProps, SidebarBrandOwnerProps,
+  SidebarFooterActionOwnerProps, SidebarRootComponentProps, SidebarRootInjected,
   SidebarSectionOwnerProps, SidebarSettingsOwnerProps,
 } from './contract/slots.ts'
 export type { SidebarKey } from './locales.ts'
@@ -43,10 +44,12 @@ export function apply(ctx: ClientContext): void {
       locale: NS,
       // The shell owns geometry; ui-workspace registers the whole browsing
       // region (header, search, session list, workspace dialogs), ui-settings
-      // registers the foot trigger + settings panel, and product bundles may
-      // replace both brand variants without taking over either button behavior.
+      // registers the foot trigger + settings panel. Product bundles may
+      // replace a whole brand variant or its granular fallback contents.
       children: {
         'sidebar.brand': { kind: 'single', scope: 'root' },
+        'sidebar.brand.mark': { kind: 'single', scope: 'root' },
+        'sidebar.brand.name': { kind: 'single', scope: 'root' },
         'sidebar.workspaces': { kind: 'single', scope: 'root' },
         'sidebar.settings': { kind: 'single', scope: 'root' },
         'sidebar.footer.action': { kind: 'list', scope: 'root' },

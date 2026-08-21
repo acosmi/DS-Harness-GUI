@@ -101,15 +101,16 @@ const GENERIC_SKIPS: readonly GenericSkip[] = [
   { file: 'apps/cli/config/agent-presets/cordis/agent.cordis.yml', upstream: ['cordis'] },
   // The preset-roster loop names the `cordis` preset id, not a package.
   { file: 'apps/cli/tests/windows-shell.spec.ts', upstream: ['cordis'] },
-  // `cordis/*` is the stable event namespace for the dynamic-extension wire
-  // protocol, while bare `cordis` is also its UI locale/catalog namespace.
-  // Neither identifier names the rescoped framework package.
+  // GROUP_ORDER holds `packages/<group>/` directory names, not package names.
+  { file: 'scripts/gen-module-graph.ts', upstream: ['cordis'] },
+  { file: 'scripts/gen-doc-graphs.ts', upstream: ['cordis'] },
+  // `cordis/*` is the extensions event domain, not a package subpath. The
+  // generated catalogs and every producer/consumer must preserve that wire id.
   { file: 'docs/event-producer-consumer.md', upstream: ['cordis'] },
   { file: 'docs/event-producer-consumer.zh.md', upstream: ['cordis'] },
   { file: 'docs/subsystems/extensions.md', upstream: ['cordis'] },
   { file: 'docs/subsystems/extensions.zh.md', upstream: ['cordis'] },
   { file: 'packages/api/remotes/src/remote-events.ts', upstream: ['cordis'] },
-  { file: 'packages/client/ui-settings-plugin-inventory/src/client/PluginInventorySettingsTab.tsx', upstream: ['cordis'] },
   { file: 'packages/extensions/cordis-client-runner/src/client/index.ts', upstream: ['cordis'] },
   { file: 'packages/extensions/cordis-client-runner/src/client/runtime.ts', upstream: ['cordis'] },
   { file: 'packages/extensions/cordis-client-runner/tests/orchestrator.client.spec.ts', upstream: ['cordis'] },
@@ -122,17 +123,16 @@ const GENERIC_SKIPS: readonly GenericSkip[] = [
   { file: 'packages/extensions/cordis-host-runner/tests/versioning.spec.ts', upstream: ['cordis'] },
   { file: 'packages/extensions/tool-cordis/src/api-catalog.ts', upstream: ['cordis'] },
   { file: 'packages/extensions/tool-cordis/src/providers.ts', upstream: ['cordis'] },
+  { file: 'packages/extensions/ui-cordis/src/client/index.ts', upstream: ['cordis'] },
+  { file: 'packages/extensions/ui-cordis/src/client/inventory.ts', upstream: ['cordis'] },
+  { file: 'scripts/gen-cordis-catalog.ts', upstream: ['cordis'] },
+  // The UI locale namespace and input-trigger source id are product keys.
+  { file: 'packages/client/ui-settings-plugin-inventory/src/client/PluginInventorySettingsTab.tsx', upstream: ['cordis'] },
   { file: 'packages/extensions/ui-cordis/src/client/CordisActionRow.tsx', upstream: ['cordis'] },
   { file: 'packages/extensions/ui-cordis/src/client/CordisDefineRow.tsx', upstream: ['cordis'] },
   { file: 'packages/extensions/ui-cordis/src/client/CordisPanel.tsx', upstream: ['cordis'] },
   { file: 'packages/extensions/ui-cordis/src/client/CordisRunRow.tsx', upstream: ['cordis'] },
-  { file: 'packages/extensions/ui-cordis/src/client/index.ts', upstream: ['cordis'] },
-  { file: 'packages/extensions/ui-cordis/src/client/inventory.ts', upstream: ['cordis'] },
   { file: 'packages/extensions/ui-cordis/src/client/locales.ts', upstream: ['cordis'] },
-  { file: 'scripts/gen-cordis-catalog.ts', upstream: ['cordis'] },
-  // GROUP_ORDER holds `packages/<group>/` directory names, not package names.
-  { file: 'scripts/gen-module-graph.ts', upstream: ['cordis'] },
-  { file: 'scripts/gen-doc-graphs.ts', upstream: ['cordis'] },
 ]
 
 /** A string that must appear exactly `count` times once the rescope has run. */
@@ -202,11 +202,13 @@ const EXACT_EDITS: readonly ExactEdit[] = [
     file: 'knip.json',
     find: `      "ignoreDependencies": [
         "@cordisjs/plugin-logger-console",
+        "@acosmi/dsh-llm-acosmi",
         "@deepseek-ai/.+"
       ]
     },
     "packages/util/home": {`,
     replace: `      "ignoreDependencies": [
+        "@acosmi/dsh-llm-acosmi",
         "@deepseek-ai/.+"
       ]
     },
@@ -304,8 +306,8 @@ const EXACT_EDITS: readonly ExactEdit[] = [
     replace: `/**
  * Vendored framework libraries: rescoped into @deepseek-ai, so the gate below
  * would read them as plugin packages. They carry no cross-plugin runtime
- * identity to share — the framework itself is a platform module (external),
- * while these are ordinary libraries a browser bundle inlines.
+ * identity to share — the framework itself is a requested module-table row
+ * (external), while these are ordinary libraries a browser bundle inlines.
  */
 const VENDORED_LIBRARY = /^@deepseek-ai\\/(cosmokit|schemastery)(\\/|$)/
 

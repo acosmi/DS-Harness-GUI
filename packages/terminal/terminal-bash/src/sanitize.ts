@@ -2,6 +2,8 @@
 
 import { Buffer } from 'node:buffer'
 
+const CURSOR_POSITION_REQUEST = '\x1b[6n'
+
 /** OSC marker emitted by the controlled bash before each prompt. */
 export const PROMPT_MARKER_PREFIX = '133;D;'
 
@@ -14,6 +16,8 @@ export interface SanitizedChunk {
   prompt: boolean
   /** Printable text after the latest owned marker in this chunk. */
   promptTail?: string
+  /** Number of standard cursor-position reports requested by the child. */
+  cursorPositionRequests?: number
 }
 
 /**
@@ -28,7 +32,13 @@ export class TerminalSanitizer {
   private trailingCarriageReturn = false
   private trackingPromptTail = false
 
-  constructor(private readonly maxPendingBytes: number) {}
+  private readonly maxPendingBytes: number
+
+  constructor(maxPendingBytes: number) {
+    // Preserve one complete CSI 6n request even when printable read bounds are
+    // smaller; otherwise a split PSReadLine startup query cannot be answered.
+    this.maxPendingBytes = Math.max(maxPendingBytes, CURSOR_POSITION_REQUEST.length)
+  }
 
   /**
    * Consume one decoded `node-pty` data chunk.
@@ -41,6 +51,7 @@ export class TerminalSanitizer {
     let prompt = false
     let includePromptTail = this.trackingPromptTail
     let promptTail = ''
+    let cursorPositionRequests = 0
     let index = 0
     const appendText = (value: string): void => {
       text += value
@@ -92,6 +103,7 @@ export class TerminalSanitizer {
           index = escape
           break
         }
+        if (this.pending.slice(escape, end + 1) === CURSOR_POSITION_REQUEST) cursorPositionRequests += 1
         index = end + 1
         continue
       }
@@ -104,6 +116,7 @@ export class TerminalSanitizer {
       text: this.normalizeText(text),
       prompt,
       ...includePromptTail ? { promptTail } : {},
+      ...cursorPositionRequests > 0 ? { cursorPositionRequests } : {},
     }
   }
 

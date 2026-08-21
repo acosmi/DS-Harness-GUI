@@ -3,7 +3,7 @@ import { Client, type ManagedModel } from '@acosmi/sdk-ts'
 import { ReasoningEffortId } from '@deepseek-ai/dsh-llm'
 import type { GenerateOptions, Message } from '@deepseek-ai/dsh-llm'
 import { describe, expect, it } from 'vitest'
-import { serializeAcosmiRequest } from '../src/serialize.ts'
+import { serializeAcosmiRequest, type AcosmiReplayState } from '../src/serialize.ts'
 
 function model(
   capabilities: Record<string, unknown> = {},
@@ -50,6 +50,25 @@ function options(messages: Message[], overrides: Partial<GenerateOptions> = {}):
     model: 'managed-model',
     messages,
     ...overrides,
+  }
+}
+
+function replayState(
+  content: readonly Record<string, unknown>[],
+  replayModel = 'managed-model',
+): AcosmiReplayState {
+  const indexed = content.map((block, index) => ({ index, content: block }))
+  const hidden = indexed.filter(({ content: block }) => block.type === 'redacted_thinking'
+    || block.type === 'server_tool_use' || block.type === 'web_search_tool_result')
+  const hiddenIndexes = new Set(hidden.map(block => block.index))
+  return {
+    response: {
+      format: 'acosmi-anthropic-v2',
+      version: 2,
+      model: replayModel,
+      hidden,
+    },
+    blocks: indexed.filter(block => !hiddenIndexes.has(block.index)),
   }
 }
 
@@ -116,23 +135,25 @@ describe('Acosmi request serialization', () => {
   })
 
   it('replays signed provider blocks for the same model and removes signed reasoning after a model switch', () => {
-    const replay = {
-      format: 'acosmi-anthropic-v1',
-      version: 1,
-      model: 'managed-model',
-      content: [
-        { type: 'thinking', thinking: 'private reasoning', signature: 'signed' },
-        { type: 'text', text: 'answer' },
-      ],
-    }
+    const content = [
+      { type: 'thinking', thinking: 'private reasoning', signature: 'signed' },
+      { type: 'text', text: 'answer' },
+    ]
+    const replay = replayState(content)
     const history = message('assistant', [
       { type: 'reasoning', text: 'private reasoning' },
       { type: 'text', text: 'answer' },
     ], { kind: 'model', provider: 'acosmi', model: 'managed-model', replayState: replay })
     expect(serializeAcosmiRequest(options([history]), model()).rawMessages)
-      .toEqual([{ role: 'assistant', content: replay.content }])
+      .toEqual([{ role: 'assistant', content }])
 
-    const wrongModel = { ...history, source: { ...history.source, replayState: { ...replay, model: 'other' } } } as Message
+    const wrongModel = {
+      ...history,
+      source: {
+        ...history.source,
+        replayState: { ...replay, response: { ...replay.response, model: 'other' } },
+      },
+    } as Message
     expect(() => serializeAcosmiRequest(options([wrongModel]), model())).toThrow(/assistant source/)
     expect(serializeAcosmiRequest(options([history], { model: 'other' }), model()).rawMessages)
       .toEqual([{ role: 'assistant', content: [{ type: 'text', text: 'answer' }] }])
@@ -149,15 +170,10 @@ describe('Acosmi request serialization', () => {
   })
 
   it('keeps same-model reasoning portable when the provider format changes', () => {
-    const signedReplay = {
-      format: 'acosmi-anthropic-v1',
-      version: 1,
-      model: 'managed-model',
-      content: [
-        { type: 'thinking', thinking: 'signed reasoning', signature: 'signed' },
-        { type: 'text', text: 'answer' },
-      ],
-    }
+    const signedReplay = replayState([
+      { type: 'thinking', thinking: 'signed reasoning', signature: 'signed' },
+      { type: 'text', text: 'answer' },
+    ])
     const signedHistory = message('assistant', [
       { type: 'reasoning', text: 'signed reasoning' },
       { type: 'text', text: 'answer' },
@@ -177,13 +193,10 @@ describe('Acosmi request serialization', () => {
       content: 'answer',
     }])
 
-    const unsignedReplay = {
-      ...signedReplay,
-      content: [
-        { type: 'thinking', thinking: 'unsigned reasoning' },
-        { type: 'text', text: 'answer' },
-      ],
-    }
+    const unsignedReplay = replayState([
+      { type: 'thinking', thinking: 'unsigned reasoning' },
+      { type: 'text', text: 'answer' },
+    ])
     const unsignedHistory = message('assistant', [
       { type: 'reasoning', text: 'unsigned reasoning' },
       { type: 'text', text: 'answer' },
@@ -200,12 +213,7 @@ describe('Acosmi request serialization', () => {
   })
 
   it('omits a reasoning-only response when switching models instead of creating an empty assistant message', () => {
-    const replay = {
-      format: 'acosmi-anthropic-v1',
-      version: 1,
-      model: 'managed-model',
-      content: [{ type: 'thinking', thinking: 'private reasoning', signature: 'signed' }],
-    }
+    const replay = replayState([{ type: 'thinking', thinking: 'private reasoning', signature: 'signed' }])
     const history = message('assistant', [{ type: 'reasoning', text: 'private reasoning' }], {
       kind: 'model',
       provider: 'acosmi',
@@ -217,22 +225,17 @@ describe('Acosmi request serialization', () => {
   })
 
   it('retains ephemeral markers so the SDK still strips temporary portable history', () => {
-    const replay = {
-      format: 'acosmi-anthropic-v1',
-      version: 1,
-      model: 'managed-model',
-      content: [
-        { type: 'text', text: 'permanent' },
-        { type: 'text', text: 'temporary', acosmi_ephemeral: true },
-        {
-          type: 'tool_use',
-          id: 'call-1',
-          name: 'lookup',
-          input: { q: 'temporary' },
-          acosmi_ephemeral: true,
-        },
-      ],
-    }
+    const replay = replayState([
+      { type: 'text', text: 'permanent' },
+      { type: 'text', text: 'temporary', acosmi_ephemeral: true },
+      {
+        type: 'tool_use',
+        id: 'call-1',
+        name: 'lookup',
+        input: { q: 'temporary' },
+        acosmi_ephemeral: true,
+      },
+    ])
     const history = message('assistant', [
       { type: 'text', text: 'permanent' },
       { type: 'text', text: 'temporary' },
@@ -267,15 +270,11 @@ describe('Acosmi request serialization', () => {
   })
 
   it('matches signed tool replay by JSON value instead of argument formatting', () => {
-    const replay = {
-      format: 'acosmi-anthropic-v1',
-      version: 1,
-      model: 'managed-model',
-      content: [
-        { type: 'thinking', thinking: 'private reasoning', signature: 'signed' },
-        { type: 'tool_use', id: 'call-1', name: 'lookup', input: { nested: { b: 2, a: 1 } } },
-      ],
-    }
+    const content = [
+      { type: 'thinking', thinking: 'private reasoning', signature: 'signed' },
+      { type: 'tool_use', id: 'call-1', name: 'lookup', input: { nested: { b: 2, a: 1 } } },
+    ]
+    const replay = replayState(content)
     const history = message('assistant', [
       { type: 'reasoning', text: 'private reasoning' },
       {
@@ -287,7 +286,7 @@ describe('Acosmi request serialization', () => {
     ], { kind: 'model', provider: 'acosmi', model: 'managed-model', replayState: replay })
 
     expect(serializeAcosmiRequest(options([history]), model()).rawMessages)
-      .toEqual([{ role: 'assistant', content: replay.content }])
+      .toEqual([{ role: 'assistant', content }])
     const result = message('user', [{
       type: 'tool-result',
       toolCallId: 'call-1' as never,
@@ -316,27 +315,23 @@ describe('Acosmi request serialization', () => {
       title: 'Source',
       cited_text: 'Evidence',
     }
-    const replay = {
-      format: 'acosmi-anthropic-v1',
-      version: 1,
-      model: 'managed-model',
-      content: [
-        {
-          type: 'server_tool_use',
-          id: 'srv-1',
-          name: 'web_search',
-          input: { query: 'current evidence' },
-          acosmi_ephemeral: true,
-        },
-        {
-          type: 'web_search_tool_result',
-          tool_use_id: 'srv-1',
-          content: [{ type: 'web_search_result', url: citation.url, title: citation.title }],
-          acosmi_ephemeral: true,
-        },
-        { type: 'text', text: 'Answer', citations: [citation] },
-      ],
-    }
+    const content = [
+      {
+        type: 'server_tool_use',
+        id: 'srv-1',
+        name: 'web_search',
+        input: { query: 'current evidence' },
+        acosmi_ephemeral: true,
+      },
+      {
+        type: 'web_search_tool_result',
+        tool_use_id: 'srv-1',
+        content: [{ type: 'web_search_result', url: citation.url, title: citation.title }],
+        acosmi_ephemeral: true,
+      },
+      { type: 'text', text: 'Answer', citations: [citation] },
+    ]
+    const replay = replayState(content)
     const history = message('assistant', [{ type: 'text', text: 'Answer' }], {
       kind: 'model',
       provider: 'acosmi',
@@ -352,7 +347,7 @@ describe('Acosmi request serialization', () => {
       },
     })
 
-    expect(request.rawMessages).toEqual([{ role: 'assistant', content: replay.content }])
+    expect(request.rawMessages).toEqual([{ role: 'assistant', content }])
     client.setAutoStripEphemeralHistory(true)
     client.applyRequestSanitizers(request)
     expect(request.rawMessages).toEqual([{
@@ -370,12 +365,7 @@ describe('Acosmi request serialization', () => {
       kind: 'model',
       provider: 'acosmi',
       model: 'managed-model',
-      replayState: {
-        format: 'acosmi-anthropic-v1',
-        version: 1,
-        model: 'managed-model',
-        content: [{ type: 'text', text: 'answer', hidden: 'provider-directive' }],
-      },
+      replayState: replayState([{ type: 'text', text: 'answer', hidden: 'provider-directive' }]),
     })
     expect(() => serializeAcosmiRequest(options([injected]), model())).toThrow(/Invalid Acosmi replay state/)
 
@@ -383,14 +373,41 @@ describe('Acosmi request serialization', () => {
       kind: 'model',
       provider: 'acosmi',
       model: 'historical-model',
-      replayState: {
-        format: 'acosmi-anthropic-v1',
-        version: 1,
-        model: 'managed-model',
-        content: [{ type: 'text', text: 'answer' }],
-      },
+      replayState: replayState([{ type: 'text', text: 'answer' }]),
     })
     expect(() => serializeAcosmiRequest(options([wrongSource]), model())).toThrow(/assistant source/)
+  })
+
+  it('rejects malformed envelope metadata and provider blocks in the wrong half', () => {
+    const valid = replayState([{ type: 'text', text: 'answer' }])
+    const invalidStates: unknown[] = [
+      { ...valid, injected: true },
+      { ...valid, response: { ...valid.response, version: 3 } },
+      { ...valid, blocks: [{ index: -1, content: { type: 'text', text: 'answer' } }] },
+      {
+        response: {
+          ...valid.response,
+          hidden: [{ index: 0, content: { type: 'text', text: 'answer' } }],
+        },
+        blocks: [],
+      },
+      {
+        ...valid,
+        response: {
+          ...valid.response,
+          hidden: [{ index: 0, content: { type: 'redacted_thinking', data: 'opaque' } }],
+        },
+      },
+    ]
+    for (const replayState of invalidStates) {
+      const history = message('assistant', [{ type: 'text', text: 'answer' }], {
+        kind: 'model',
+        provider: 'acosmi',
+        model: 'managed-model',
+        replayState,
+      })
+      expect(() => serializeAcosmiRequest(options([history]), model())).toThrow(/Invalid Acosmi replay state/)
+    }
   })
 
   it('uses OpenAI-native messages and function tools for OpenAI-format account models', () => {
@@ -409,16 +426,11 @@ describe('Acosmi request serialization', () => {
         kind: 'model',
         provider: 'acosmi',
         model: 'managed-model',
-        replayState: {
-          format: 'acosmi-anthropic-v1',
-          version: 1,
-          model: 'managed-model',
-          content: [
-            { type: 'thinking', thinking: 'reasoning' },
-            { type: 'text', text: 'calling' },
-            { type: 'tool_use', id: 'call-1', name: 'lookup', input: { q: 'x' } },
-          ],
-        },
+        replayState: replayState([
+          { type: 'thinking', thinking: 'reasoning' },
+          { type: 'text', text: 'calling' },
+          { type: 'tool_use', id: 'call-1', name: 'lookup', input: { q: 'x' } },
+        ]),
       }),
       message('user', [{
         type: 'tool-result',
@@ -468,24 +480,19 @@ describe('Acosmi request serialization', () => {
       kind: 'model',
       provider: 'acosmi',
       model: 'managed-model',
-      replayState: {
-        format: 'acosmi-anthropic-v1',
-        version: 1,
-        model: 'managed-model',
-        content: [
-          { type: 'thinking', thinking: 'private reasoning', signature: 'signed' },
-          { type: 'text', text: 'permanent' },
-          { type: 'text', text: 'temporary', acosmi_ephemeral: true },
-          { type: 'tool_use', id: 'call-1', name: 'keep', input: { q: 'keep' } },
-          {
-            type: 'tool_use',
-            id: 'call-2',
-            name: 'drop',
-            input: { q: 'drop' },
-            acosmi_ephemeral: true,
-          },
-        ],
-      },
+      replayState: replayState([
+        { type: 'thinking', thinking: 'private reasoning', signature: 'signed' },
+        { type: 'text', text: 'permanent' },
+        { type: 'text', text: 'temporary', acosmi_ephemeral: true },
+        { type: 'tool_use', id: 'call-1', name: 'keep', input: { q: 'keep' } },
+        {
+          type: 'tool_use',
+          id: 'call-2',
+          name: 'drop',
+          input: { q: 'drop' },
+          acosmi_ephemeral: true,
+        },
+      ]),
     })
     const toolResults = message('user', [
       {

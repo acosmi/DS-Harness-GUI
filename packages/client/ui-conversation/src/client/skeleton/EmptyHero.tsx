@@ -102,8 +102,8 @@ export function HeroGlow({ className }: { className?: string | undefined }) {
 export interface HeroShellProps {
   /** The owner's locale seat, passed down as a plain prop. */
   t: HeroTranslate
-  /** Optional product mark; omission retains the upstream fish fallback. */
-  brand?: ReactNode
+  /** Authorized renderer for the layered hero brand slots. */
+  renderSlot: ConversationSlotProps['renderSlot']
   /** Overlay content after the stack (modals). */
   children?: ReactNode
 }
@@ -114,14 +114,22 @@ export interface HeroShellProps {
  * @param props - see {@link HeroShellProps}.
  * @returns the centered hero element tree.
  */
-export function HeroShell({ t, brand, children }: HeroShellProps) {
+export function HeroShell({ t, renderSlot, children }: HeroShellProps) {
   return (
     <div className={css.root}>
       <div className={css.stack}>
         <div className={css.headline}>
           {/* figma 34:10412: a 34px brand cell leads the headline, gap 10. */}
           <span className={css.brandHitbox}>
-            {brand ?? <FishLogo size={34} />}
+            {renderSlot('conversation.hero.brand', {}, {
+              fallback: (
+                <span className={css.brandFallback}>
+                  {renderSlot('conversation.hero.brand.mark', { size: 34, className: css.brandMark }, {
+                    fallback: <FishLogo size={34} className={css.brandMark} />,
+                  })}
+                </span>
+              ),
+            })}
           </span>
           <span className={css.headlineText}>{t('hero.headline')}</span>
           <span className={css.previewBadge}>{t('hero.preview')}</span>

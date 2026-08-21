@@ -16,7 +16,7 @@ Billing health, a runner definition's `Ready` state, and a large autoscaling cei
 
 The three Linux primary jobs, Node compatibility, Python SDK unit suite, Python runtime validation, and `windows node 24 / wine blocking` remain dependencies of `all checks passed`; `windows node 24 / native complete` is deliberately absent. Branch protection continues to require `e2e` and `all checks passed`. Derived repositories never request the canonical organization's labels, so they cannot deadlock on unavailable runner groups. Within the canonical repository, the platform-specific variables documented by the [failover runbook](2026-07-26-ci-failover-runbook.md) retarget an unavailable enterprise pool to its proven self-hosted standby without changing the required inventory.
 
-The [larger-runner decision](2026-07-22-evidence-based-larger-hosted-runners.md) owns the current primary topology and its measurements. The [serial cross-platform reference](2026-07-21-serial-cross-platform-ci-reference.md) remains the independent standard-hosted completeness check, and the manual larger-runner suites retain size comparisons without expanding the ordinary required matrix.
+The [larger-runner decision](2026-07-22-evidence-based-larger-hosted-runners.md) owns the current primary topology and its measurements. The [serial cross-platform reference](2026-07-21-serial-cross-platform-ci-reference.md) remains the independent completeness check, now provided by the self-hosted `vm-backup`/`dsh-win-ci` standby lanes on `master`; the only hosted serial reference is the disabled `serial-macos`. The manual larger-runner suites retain size comparisons without expanding the ordinary required matrix.
 
 ## Alternatives considered
 

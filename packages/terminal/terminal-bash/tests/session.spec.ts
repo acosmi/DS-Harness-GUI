@@ -130,7 +130,7 @@ function makeSession(
 
 function config(overrides: Partial<ResolvedConfig> = {}): ResolvedConfig {
   return {
-    backendType: 'shell', shellPath: '/bin/bash', shellArgs: [], rows: 24, cols: 80,
+    backendType: 'shell', shellDialect: 'bash', shellPath: '/bin/bash', shellArgs: [], rows: 24, cols: 80,
     scrollbackLines: 10, scrollbackMaxBytes: 128, maxReadBytes: 64,
     pollIntervalMs: 10, exactProbeAfterMs: 20, idleSilenceMs: 50, handoffGraceMs: 10, timeoutMs: 100,
     disposeGraceMs: 20,
@@ -142,9 +142,15 @@ afterEach(() => { vi.useRealTimers() })
 
 async function initialize(session: LocalPtySession, terminal: FakeTerminal): Promise<void> {
   const pending = session.initialize()
+  await Promise.resolve()
+  await Promise.resolve()
   terminal.emitData('\x1b]133;D;0\x07dsh> ')
   await vi.advanceTimersByTimeAsync(10)
   await pending
+}
+
+async function flushMicrotasks(): Promise<void> {
+  for (let index = 0; index < 8; index += 1) await Promise.resolve()
 }
 
 describe('LocalPtySession readiness and output', () => {
@@ -261,6 +267,38 @@ describe('LocalPtySession readiness and output', () => {
     await vi.advanceTimersByTimeAsync(10)
     expect(settled).toBe(true)
     expect((await operation.done).waitReason).toBe('stdin_read')
+  })
+
+  it('requires the controlled prompt when a pwsh reader thread waits on stdin', async () => {
+    vi.useFakeTimers()
+    const terminal = new FakeTerminal()
+    const inspector = new FakeInspector()
+    const session = makeSession(terminal, inspector, config({
+      shellDialect: 'pwsh',
+      shellPath: 'pwsh',
+      idleSilenceMs: 100,
+      timeoutMs: 200,
+    }))
+    await initialize(session, terminal)
+
+    inspector.waiting = true
+    const operation = session.startSend({ text: 'Write-Output "keep=ok"', submit: true })
+    let settled = false
+    void operation.done.then(() => { settled = true })
+    await Promise.resolve()
+    await Promise.resolve()
+
+    inspector.waiting = false
+    await vi.advanceTimersByTimeAsync(10)
+    inspector.waiting = true
+    await vi.advanceTimersByTimeAsync(10)
+    expect(settled).toBe(false)
+
+    terminal.emitData('keep=ok\r\n\x1b]133;D;0\x07dsh> ')
+    await vi.advanceTimersByTimeAsync(10)
+    const result = await operation.done
+    expect(result.waitReason).toBe('stdin_read')
+    expect(result.viewport).toContain('keep=ok')
   })
 
   it('distinguishes inferred idle, timeout, exit signal, and operation reads', async () => {
@@ -767,6 +805,9 @@ describe('LocalPtySession readiness and output', () => {
     const session = new LocalPtySession(terminal, config())
     let settled = false
     const initializing = session.initialize().then(() => { settled = true })
+    terminal.emitData('\x1b[6n')
+    await Promise.resolve()
+    expect(terminal.writes).toEqual([])
     await vi.advanceTimersByTimeAsync(60)
     expect(settled).toBe(false)
     terminal.emitData('\x1b]133;D;0\x07dsh> ')
@@ -778,6 +819,275 @@ describe('LocalPtySession readiness and output', () => {
     const timedOut = expect(timeout.initialize()).rejects.toThrow('startup timeout')
     await vi.advanceTimersByTimeAsync(100)
     await timedOut
+  })
+
+  it('answers pwsh cursor-position requests before startup settles', async () => {
+    vi.useFakeTimers()
+    const terminal = new FakeTerminal()
+    const session = new LocalPtySession(terminal, config({ shellDialect: 'pwsh' }))
+    const initializing = session.initialize()
+    await Promise.resolve()
+    await Promise.resolve()
+    terminal.emitData('\x1b[6')
+    terminal.emitData('n')
+    await Promise.resolve()
+    expect(terminal.writes).toEqual(['\x1b[1;1R'])
+
+    terminal.emitData('PS> ')
+    await vi.advanceTimersByTimeAsync(50)
+    await initializing
+    expect(session.motd).toBe('PS> ')
+  })
+
+  it('serializes a pwsh cursor response ahead of the next user write', async () => {
+    vi.useFakeTimers()
+    const terminal = new FakeTerminal()
+    const session = new LocalPtySession(terminal, config({ shellDialect: 'pwsh' }))
+    const initializing = session.initialize()
+    terminal.emitData('PS> ')
+    await vi.advanceTimersByTimeAsync(50)
+    await initializing
+
+    const responseWritten = Promise.withResolvers<undefined>()
+    const releaseResponse = Promise.withResolvers<undefined>()
+    const userWrite = Promise.withResolvers<undefined>()
+    terminal.write = async (data: string) => {
+      terminal.writes.push(data)
+      if (data === '\x1b[1;1R') {
+        responseWritten.resolve(undefined)
+        await releaseResponse.promise
+      }
+      if (data === 'Write-Output ready\r') userWrite.resolve(undefined)
+    }
+    terminal.emitData('\x1b[6n')
+    const operation = session.startSend({ text: 'Write-Output ready', submit: true })
+    await responseWritten.promise
+    expect(terminal.writes).toEqual(['\x1b[1;1R'])
+
+    releaseResponse.resolve(undefined)
+    await userWrite.promise
+    expect(terminal.writes).toEqual(['\x1b[1;1R', 'Write-Output ready\r'])
+    terminal.emitData('\x1b]133;D;0\x07dsh> ')
+    await vi.advanceTimersByTimeAsync(10)
+    expect((await operation.done).waitReason).toBe('stdin_read')
+  })
+
+  it('does not settle inferred idle while a pwsh cursor response write is pending', async () => {
+    vi.useFakeTimers()
+    const terminal = new FakeTerminal()
+    const session = new LocalPtySession(terminal, config({ shellDialect: 'pwsh', timeoutMs: 200 }))
+    const initializing = session.initialize()
+    terminal.emitData('PS> ')
+    await vi.advanceTimersByTimeAsync(50)
+    await initializing
+
+    const responseWritten = Promise.withResolvers<undefined>()
+    const releaseResponse = Promise.withResolvers<undefined>()
+    terminal.write = async (data: string) => {
+      terminal.writes.push(data)
+      if (data === '\x1b[1;1R') {
+        responseWritten.resolve(undefined)
+        await releaseResponse.promise
+      }
+    }
+    const operation = session.startSend({ text: 'Write-Output ready', submit: true })
+    await flushMicrotasks()
+    expect(terminal.writes).toContain('Write-Output ready\r')
+    terminal.emitData('ready\r\n\x1b[6n')
+    await responseWritten.promise
+    let settled = false
+    void operation.done.then(() => { settled = true })
+    await vi.advanceTimersByTimeAsync(100)
+    expect(settled).toBe(false)
+
+    releaseResponse.resolve(undefined)
+    terminal.emitData('\x1b]133;D;0\x07dsh> ')
+    await vi.advanceTimersByTimeAsync(10)
+    expect((await operation.done).waitReason).toBe('stdin_read')
+  })
+
+  it('orders a pwsh cursor response after an in-flight user write', async () => {
+    vi.useFakeTimers()
+    const terminal = new FakeTerminal()
+    const session = new LocalPtySession(terminal, config({ shellDialect: 'pwsh' }))
+    const initializing = session.initialize()
+    terminal.emitData('PS> ')
+    await vi.advanceTimersByTimeAsync(50)
+    await initializing
+
+    const releaseUserWrite = Promise.withResolvers<undefined>()
+    terminal.write = async (data: string) => {
+      terminal.writes.push(data)
+      if (data === 'Write-Output ready\r') await releaseUserWrite.promise
+    }
+    const operation = session.startSend({ text: 'Write-Output ready', submit: true })
+    await flushMicrotasks()
+    expect(terminal.writes).toEqual(['Write-Output ready\r'])
+    terminal.emitData('\x1b[6n')
+    await Promise.resolve()
+    expect(terminal.writes).toEqual(['Write-Output ready\r'])
+
+    releaseUserWrite.resolve(undefined)
+    await flushMicrotasks()
+    expect(terminal.writes).toEqual(['Write-Output ready\r', '\x1b[1;1R'])
+    terminal.emitData('\x1b]133;D;0\x07dsh> ')
+    await vi.advanceTimersByTimeAsync(10)
+    expect((await operation.done).waitReason).toBe('stdin_read')
+  })
+
+  it('publishes user-write ownership before reentrant pwsh output', async () => {
+    vi.useFakeTimers()
+    const terminal = new FakeTerminal()
+    const session = new LocalPtySession(terminal, config({ shellDialect: 'pwsh' }))
+    const initializing = session.initialize()
+    terminal.emitData('PS> ')
+    await vi.advanceTimersByTimeAsync(50)
+    await initializing
+
+    const releaseUserWrite = Promise.withResolvers<undefined>()
+    const responseWritten = Promise.withResolvers<undefined>()
+    terminal.write = async (data: string) => {
+      terminal.writes.push(data)
+      if (data === 'Write-Output ready\r') {
+        terminal.emitData('\x1b[6n')
+        await releaseUserWrite.promise
+      } else if (data === '\x1b[1;1R') {
+        responseWritten.resolve(undefined)
+      }
+    }
+    const operation = session.startSend({ text: 'Write-Output ready', submit: true })
+    await flushMicrotasks()
+    expect(terminal.writes).toEqual(['Write-Output ready\r'])
+
+    releaseUserWrite.resolve(undefined)
+    await responseWritten.promise
+    expect(terminal.writes).toEqual(['Write-Output ready\r', '\x1b[1;1R'])
+    terminal.emitData('\x1b]133;D;0\x07dsh> ')
+    await vi.advanceTimersByTimeAsync(10)
+    expect((await operation.done).waitReason).toBe('stdin_read')
+  })
+
+  it('retains a timed-out send until its user write and cursor response drain', async () => {
+    vi.useFakeTimers()
+    const terminal = new FakeTerminal()
+    const session = new LocalPtySession(terminal, config({ shellDialect: 'pwsh' }))
+    const initializing = session.initialize()
+    terminal.emitData('PS> ')
+    await vi.advanceTimersByTimeAsync(50)
+    await initializing
+
+    const releaseUserWrite = Promise.withResolvers<undefined>()
+    const releaseResponse = Promise.withResolvers<undefined>()
+    terminal.write = async (data: string) => {
+      terminal.writes.push(data)
+      if (data === 'Write-Output ready\r') await releaseUserWrite.promise
+      if (data === '\x1b[1;1R') await releaseResponse.promise
+    }
+    const operation = session.startSend({ text: 'Write-Output ready', submit: true })
+    await flushMicrotasks()
+    terminal.emitData('\x1b[6n')
+    await vi.advanceTimersByTimeAsync(100)
+    expect((await operation.done).waitReason).toBe('timeout')
+    expect(() => session.startSend({ text: 'must wait', submit: true })).toThrow(expect.objectContaining({
+      code: 'SEND_ACTIVE',
+    }))
+
+    releaseUserWrite.resolve(undefined)
+    await flushMicrotasks()
+    expect(terminal.writes).toEqual(['Write-Output ready\r', '\x1b[1;1R'])
+    expect(() => session.startSend({ text: 'still waiting', submit: true })).toThrow(expect.objectContaining({
+      code: 'SEND_ACTIVE',
+    }))
+
+    releaseResponse.resolve(undefined)
+    await flushMicrotasks()
+    const next = session.startSend({ text: '', submit: false })
+    await vi.advanceTimersByTimeAsync(50)
+    expect((await next.done).waitReason).toBe('inferred_idle')
+  })
+
+  it('drops a queued cursor response when the timed-out user write fails', async () => {
+    vi.useFakeTimers()
+    const terminal = new FakeTerminal()
+    const session = new LocalPtySession(terminal, config({ shellDialect: 'pwsh' }))
+    const initializing = session.initialize()
+    terminal.emitData('PS> ')
+    await vi.advanceTimersByTimeAsync(50)
+    await initializing
+
+    const userWrite = Promise.withResolvers<undefined>()
+    terminal.write = async (data: string) => {
+      terminal.writes.push(data)
+      await userWrite.promise
+    }
+    const operation = session.startSend({ text: 'Write-Output ready', submit: true })
+    await flushMicrotasks()
+    terminal.emitData('\x1b[6n')
+    await vi.advanceTimersByTimeAsync(100)
+    expect((await operation.done).waitReason).toBe('timeout')
+
+    userWrite.reject(new Error('user write failed'))
+    await flushMicrotasks()
+    expect(terminal.writes).toEqual(['Write-Output ready\r'])
+    const next = session.startSend({ text: '', submit: false })
+    await vi.advanceTimersByTimeAsync(50)
+    expect((await next.done).waitReason).toBe('inferred_idle')
+  })
+
+  it('stops queued cursor responses after the first response transport failure', async () => {
+    const terminal = new FakeTerminal()
+    const session = new LocalPtySession(terminal, config({ shellDialect: 'pwsh' }))
+    const initializing = session.initialize()
+    const responseWrite = Promise.withResolvers<undefined>()
+    const responseStarted = Promise.withResolvers<undefined>()
+    terminal.write = async (data: string) => {
+      terminal.writes.push(data)
+      responseStarted.resolve(undefined)
+      await responseWrite.promise
+    }
+    const rejected = expect(initializing).rejects.toThrow('write failed')
+    terminal.emitData('\x1b[6n')
+    await responseStarted.promise
+    terminal.emitData('\x1b[6n')
+    responseWrite.reject(new Error('write failed'))
+    await rejected
+    await flushMicrotasks()
+    expect(terminal.writes).toEqual(['\x1b[1;1R'])
+    expect(session.status()).toEqual({ kind: 'exited', exitCode: null, signal: null })
+  })
+
+  it('contains queued cursor responses and waiters when close supersedes a canceled send', async () => {
+    vi.useFakeTimers()
+    const terminal = new FakeTerminal()
+    const session = new LocalPtySession(terminal, config({ shellDialect: 'pwsh' }))
+    const initializing = session.initialize()
+    terminal.emitData('PS> ')
+    await vi.advanceTimersByTimeAsync(50)
+    await initializing
+
+    const responseWrite = Promise.withResolvers<undefined>()
+    const responseStarted = Promise.withResolvers<undefined>()
+    terminal.write = async (data: string) => {
+      terminal.writes.push(data)
+      if (data === '\x1b[1;1R') {
+        responseStarted.resolve(undefined)
+        await responseWrite.promise
+      }
+    }
+    terminal.emitData('\x1b[6n')
+    await responseStarted.promise
+    const operation = session.startSend({ text: 'must not be written', submit: true })
+    await flushMicrotasks()
+    terminal.emitData('\x1b[6n')
+    expect(operation.cancel()).toBe(true)
+    const closing = session.close('cursor response pending')
+    await closing
+    expect((await operation.done).waitReason).toBe('session_exit')
+
+    responseWrite.reject(new Error('response rejected after close'))
+    await flushMicrotasks()
+    expect(terminal.writes).toEqual(['\x1b[1;1R'])
+    expect(terminal.inspector.groups).toEqual([])
   })
 
   it('preserves the caller abort reason when startup cannot resolve a foreground group', async () => {

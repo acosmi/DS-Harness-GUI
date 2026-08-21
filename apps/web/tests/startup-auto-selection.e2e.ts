@@ -71,10 +71,13 @@ describe('web e2e: startup auto-selection', () => {
     const headline = page.getByText('Into the Unknown', { exact: true })
     const fishHitbox = headline.locator('xpath=preceding-sibling::span[1]')
     const fish = fishHitbox.locator('[data-slot="conversation.hero.brand"] svg')
+    const animatedBrand = fishHitbox.locator(
+      ':scope > [data-slot="conversation.hero.brand"] > :first-child',
+    )
     expect(await fish.evaluate(node => getComputedStyle(node).color))
       .toBe(await headline.evaluate(node => getComputedStyle(node).color))
     await fishHitbox.hover()
-    expect(await fish.evaluate(node => getComputedStyle(node).animationName)).not.toBe('none')
+    expect(await animatedBrand.evaluate(node => getComputedStyle(node).animationName)).not.toBe('none')
     await page.evaluate(() => {
       const refs = {
         root: document.querySelector('div[data-phase="hero"]'),

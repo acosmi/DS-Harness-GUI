@@ -4,7 +4,7 @@
 
 面向 macOS 与 Windows 的薄 Electron 组装层。它打包不可变 renderer 图，并在 Electron utility process 中启动真实 Harness Host。每次应用构建先删除旧的 `dist/` 目录，再校验六份发行账本，然后生成新的 main、preload、utility 与 renderer 产物。
 
-主进程从按平台封闭的命令搜索、用户目录、临时目录、区域设置与操作系统运行字段清单构造 utility process 环境，再加入渠道自有的 DSH 值。宿主的环境凭据、代理设置、可执行注入选项与 capability socket 默认不进入该环境，不再依赖一份已知 secret 名称的删除清单。凭据提供方只能通过受限的主进程桥读取继承的 `DEEPSEEK_API_KEY`，并把该来源视为只读，因此官方提供方可以使用这把 key，但 Harness shell 子进程不会从环境继承它。用户保存的凭据与 Acosmi OAuth token 继续通过按渠道绑定的 vault bridge 读写。vault 会在缓冲前拒绝过大的 profile 或密文文件，并在持久模式与开发内存模式中统一限制单值大小、条目数量和明文总量。OS 加密不可用时，持久 vault 还会拒绝读取和写入，包括密文文件尚不存在的情况，因此该状态不会被误报为“账户未配置”。utility 侧 TokenStore 会把主进程桥刻意隐藏细节的失败转换为专用本地错误，不会根据提供方可控文本猜测故障类别。
+主进程从按平台封闭的命令搜索、用户目录、临时目录、区域设置与操作系统运行字段清单构造 utility process 环境，再加入渠道自有的 DSH 值。宿主的环境凭据、代理设置、可执行注入选项与 capability socket 默认不进入该环境，不再依赖一份已知 secret 名称的删除清单。凭据提供方只能通过受限的主进程桥读取继承的 `DEEPSEEK_API_KEY`，并把该来源视为只读，因此官方提供方可以使用这把 key，但 Harness shell 子进程不会从环境继承它。用户保存的凭据与 Acosmi OAuth token 继续通过按渠道绑定的 vault bridge 读写。签名构建要求使用 OS 保护 vault，并在加密不可用、Linux 后端不受保护或尚未确定时失败关闭；未签名开发构建会在 Electron 于 app ready 后确认存在操作系统加密时选择该 vault，否则使用进程内存，Linux `basic_text` 或尚未确定的后端绝不具备持久化资格。产品信息响应报告该次应用生命周期实际构造的 vault。vault 会在缓冲前拒绝过大的 profile 或密文文件，并在两种模式中统一限制单值大小、条目数量和明文总量。utility 侧 TokenStore 会把主进程桥刻意隐藏细节的失败转换为专用本地错误，不会根据提供方可控文本猜测故障类别。
 
 正常 shutdown 会先销毁 renderer 窗口，从而关闭由该窗口持有的原生目录对话框，再要求 utility process 卸载 Harness 树；期间特权桥继续供必需的 vault 清理使用，随后在同一 shutdown deadline 内等待主进程全部 secret、目录与浏览器操作结算。超时仍会使优雅关闭失败并终止 utility process，不会被报告为已经达到静止状态。
 

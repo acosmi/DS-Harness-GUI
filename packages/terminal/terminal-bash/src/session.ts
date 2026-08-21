@@ -173,6 +173,8 @@ export class LocalPtySession implements TerminalBackendSession {
   private activeAbort: (() => void) | undefined
   private interrupting: LocalSendOperation | undefined
   private activeWrite: Promise<boolean> | undefined
+  private terminalResponseTail: Promise<void> = Promise.resolve()
+  private terminalResponsesPending = 0
   private pollingReady: LocalSendOperation | undefined
   private polling = false
   private promptSeen = false
@@ -209,7 +211,11 @@ export class LocalPtySession implements TerminalBackendSession {
   async initialize(signal?: AbortSignal): Promise<void> {
     this.initializing = true
     try {
-      const operation = this.startSend({ text: '', submit: false, ...signal !== undefined ? { signal } : {} })
+      const operation = this.startSend({
+        text: '',
+        submit: false,
+        ...signal !== undefined ? { signal } : {},
+      })
       const result = await operation.done
       if (result.waitReason === 'session_exit') throw new Error('PTY shell exited during startup')
       if (result.waitReason === 'timeout') throw new Error('PTY shell did not reach readiness before startup timeout')
@@ -250,7 +256,12 @@ export class LocalPtySession implements TerminalBackendSession {
     }
     this.activeDeadlineTimer = setTimeout(() => {
       if (this.active === operation) {
-        this.settleActive('timeout', this.activeWrite !== undefined || this.interrupting === operation)
+        this.settleActive(
+          'timeout',
+          this.activeWrite !== undefined
+            || this.terminalResponsesPending > 0
+            || this.interrupting === operation,
+        )
       }
     }, this.config.timeoutMs)
     void this.beginSend(operation, request)
@@ -260,6 +271,8 @@ export class LocalPtySession implements TerminalBackendSession {
   private async beginSend(operation: LocalSendOperation, request: TerminalSendRequest): Promise<void> {
     let foreground: SubprocessTerminalForeground | undefined
     try {
+      if (this.terminalResponsesPending > 0) await this.waitForTerminalResponses()
+      if (this.active !== operation || this.closing || this.interrupting === operation) return
       foreground = await this.terminal.inspectForeground()
     } catch (error: unknown) {
       // A pre-write inspection failure while cancellation owns the slot must not
@@ -274,15 +287,23 @@ export class LocalPtySession implements TerminalBackendSession {
       return
     }
     try {
+      // oxlint-disable-next-line typescript/no-unnecessary-condition -- foreground inspection can close or interrupt the active send.
+      if (this.active !== operation || this.closing || this.interrupting === operation) return
+      if (this.terminalResponsesPending > 0) await this.waitForTerminalResponses()
+      // oxlint-disable-next-line typescript/no-unnecessary-condition -- awaiting a response can close or interrupt the active send.
       if (this.active !== operation || this.closing || this.interrupting === operation) return
       operation.setInitialForeground(foreground)
       const input = `${request.text}${request.submit ? '\r' : ''}`
       if (input.length > 0 && !operation.cancelRequested) {
         this.resetReadinessEvidence()
-        const write = this.terminal.write(input)
-        this.activeWrite = write.then(() => true, () => false)
+        const activeWrite = Promise.withResolvers<boolean>()
+        this.activeWrite = activeWrite.promise
         try {
-          await write
+          await this.terminal.write(input)
+          activeWrite.resolve(true)
+        } catch (error: unknown) {
+          activeWrite.resolve(false)
+          throw error
         } finally {
           this.activeWrite = undefined
         }
@@ -290,7 +311,7 @@ export class LocalPtySession implements TerminalBackendSession {
       // Cancellation owns post-write signalling and reservation release.
       if (operation.cancelRequested) return
       if (this.active === operation && operation.settled) {
-        this.clearActive()
+        if (this.terminalResponsesPending === 0) this.clearActive()
         return
       }
       // Closing can race the awaited provider write even though static analysis sees only local assignments.
@@ -300,8 +321,11 @@ export class LocalPtySession implements TerminalBackendSession {
         this.schedulePoll(operation)
       }
     } catch (error: unknown) {
+      // oxlint-disable-next-line typescript/no-unnecessary-condition -- an awaited provider write can fail or close the active send first.
       if (this.active === operation && !this.closing) {
-        if (operation.settled) this.clearActive()
+        if (operation.settled) {
+          if (this.terminalResponsesPending === 0) this.clearActive()
+        }
         else this.failActive(error)
       }
     }
@@ -379,6 +403,10 @@ export class LocalPtySession implements TerminalBackendSession {
 
   private onData(data: string): void {
     const sanitized = this.sanitizer.push(data)
+    if (!this.closing && this.config.shellDialect === 'pwsh'
+      && sanitized.cursorPositionRequests !== undefined) {
+      this.queueTerminalResponse('\x1b[1;1R'.repeat(sanitized.cursorPositionRequests))
+    }
     this.appendOutput(sanitized.text)
     if (sanitized.prompt) {
       // TODO(pty-delayed-signal-prompt): With a reproducer, define a marker-generation boundary
@@ -439,6 +467,7 @@ export class LocalPtySession implements TerminalBackendSession {
       }
       const foreground = await this.terminal.inspectForeground()
       if (this.active !== operation || this.closing || this.interrupting === operation) return
+      if (this.terminalResponsesPending > 0) return
       const idleFor = Date.now() - this.lastOutputAt
       if (this.promptSeen && foreground !== undefined && this.shellPgid === undefined) {
         this.shellPgid = foreground.processGroupId
@@ -450,7 +479,12 @@ export class LocalPtySession implements TerminalBackendSession {
       }
       const elapsed = Date.now() - operation.startedAt
       const startupHasOutput = !this.initializing || this.scrollback.snapshot().text.length > 0
-      const acceptsStdinWait = startupHasOutput && foreground !== undefined
+      // A pwsh-dialect session keeps a console-reader thread waiting on stdin
+      // while another thread can still be evaluating the submitted command.
+      // Only the bash dialect may use that wait as exact completion evidence.
+      const acceptsStdinWait = this.config.shellDialect === 'bash'
+        && startupHasOutput
+        && foreground !== undefined
         && operation.acceptsStdinWait(foreground.processGroupId, foreground.inputWaiting)
       if (elapsed >= this.config.exactProbeAfterMs && acceptsStdinWait) {
         this.settleActive('stdin_read')
@@ -518,6 +552,41 @@ export class LocalPtySession implements TerminalBackendSession {
     operation.fail(error)
   }
 
+  private queueTerminalResponse(response: string): void {
+    // PSReadLine blocks startup and prompt rendering on this terminal-device
+    // response. The line-oriented backend reports a fixed logical position;
+    // it does not emulate screen coordinates. Responses stay ordered after
+    // an active write and ahead of successor input, even for remote providers.
+    this.lastOutputAt = Date.now()
+    this.terminalResponsesPending += 1
+    const activeWrite = this.activeWrite
+    const write = this.terminalResponseTail.then(async () => {
+      if (activeWrite !== undefined && !await activeWrite) return
+      if (this.closing || this.transportFailure !== undefined) return
+      await this.terminal.write(response)
+      this.lastOutputAt = Date.now()
+    })
+    this.terminalResponseTail = write.catch((error: unknown) => {
+      if (!this.closing) this.onTransportFailure(error)
+    }).finally(() => {
+      this.terminalResponsesPending -= 1
+      const active = this.active
+      if (this.terminalResponsesPending === 0 && active?.settled === true) {
+        this.clearActive()
+        return
+      }
+      if (active !== undefined && this.pollingReady === active) this.schedulePoll(active, 0)
+    })
+  }
+
+  private async waitForTerminalResponses(): Promise<void> {
+    for (;;) {
+      const tail = this.terminalResponseTail
+      await tail
+      if (tail === this.terminalResponseTail) return
+    }
+  }
+
   private interrupt(operation: LocalSendOperation): void {
     if (this.active !== operation) return
     this.interrupting = operation
@@ -529,6 +598,8 @@ export class LocalPtySession implements TerminalBackendSession {
     try {
       const activeWrite = this.activeWrite
       if (activeWrite !== undefined && !await activeWrite) return
+      if (this.terminalResponsesPending > 0) await this.waitForTerminalResponses()
+      if (this.active !== operation || this.closing) return
       await this.terminal.signalForeground('SIGINT')
     } catch (error: unknown) {
       if (this.active === operation && !this.closing) this.onTransportFailure(error)
@@ -538,6 +609,7 @@ export class LocalPtySession implements TerminalBackendSession {
     }
     if (this.active === operation && operation.settled) {
       this.clearActive()
+    // oxlint-disable-next-line typescript/no-unnecessary-condition -- an awaited foreground signal can close the active send.
     } else if (this.active === operation && !this.closing) {
       this.pollingReady = operation
       this.schedulePoll(operation, 0)

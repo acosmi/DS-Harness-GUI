@@ -9,18 +9,88 @@
  */
 import type { Context } from '@deepseek-ai/cordis'
 import type {
-  RpcResult, SessionId, SubagentAddress,
+  JobView, RpcError, RpcResult, SessionId, SubagentAddress, SubagentCatalog,
 } from '@deepseek-ai/dsh-api-remotes/client'
 import type { HostObservable, SessionMaybeProvideInfo } from '@deepseek-ai/dsh-client-ui-slots'
-import type { AgentContext } from '../agents/scope.ts'
-import type { SessionSearchResultItem } from '../sessions/manager.ts'
-import type {
-  SessionBinding, SessionListState, SessionProvideDescriptor,
-} from '../sessions/service.ts'
+import type { SessionProjectionMap } from '@deepseek-ai/dsh-session-projection/types'
+import type { AgentContext } from '../agent-scope.ts'
+import type { PendingInteractionStatus } from '../pending.ts'
 import type { SessionFace } from './session.ts'
 import type { ObservableSnapshot } from './store.ts'
 
-export type { AgentContext } from '../agents/scope.ts'
+export type { AgentContext } from '../agent-scope.ts'
+
+/** List arrival lifecycle, independent from pull activity and errors. */
+export type SessionListPhase = 'pending' | 'ready'
+
+/** Request-local content hit returned to sidebar search consumers. */
+export interface SessionSearchResultItem {
+  sessionId: SessionId
+  snippet: string
+}
+
+/** One parent-addressed durable catalog projected through the sessions snapshot. */
+export interface SubagentCatalogSnapshot extends SubagentCatalog {
+  state: 'loading' | 'ready' | 'error'
+  error: RpcError | null
+}
+
+/** Session list row projected from the host list RPC plus live stream increments. */
+export interface SessionSummary {
+  id: SessionId
+  /** Latest durable log-backed title, absent until the host projects one. */
+  title?: string
+  /** Human-facing label: durable title, project basename, then session id. */
+  displayTitle: string
+  cwd?: string
+  /** Composition this session currently runs. */
+  agentPreset?: string
+  parentId?: SessionId
+  /** Coarse durable origin for navigation filtering; not a continuation capability. */
+  origin?: 'subagent'
+  running: boolean
+  /** User interaction currently blocking this session. */
+  pendingInteraction?: PendingInteractionStatus
+  /** Finished while not selected and not yet opened. */
+  completed?: boolean
+  /** Whether the durable log remains empty. */
+  blank: boolean
+  updatedAt: number
+  /** Current host-computed projection values retained by the object layer. */
+  projectionValues?: Readonly<Partial<SessionProjectionMap>>
+}
+
+/** Session list rows, current selection, and their companion projections. */
+export interface SessionListState {
+  ids: SessionId[]
+  byId: Record<SessionId, SessionSummary>
+  current: SessionId | undefined
+  phase: SessionListPhase
+  subagentsByParent: Readonly<Record<SessionId, SubagentCatalogSnapshot>>
+  jobsBySession: Readonly<Record<SessionId, readonly JobView[]>>
+  currentAddress: SubagentAddress | undefined
+}
+
+/** Session assembly handle for SessionProvider and injected factories. */
+export interface SessionBinding {
+  readonly sessionId: SessionId
+  readonly session: SessionFace
+  readonly ctx: AgentContext
+}
+
+/** One plugin's per-session standard-props contribution. */
+export interface SessionProvideContribution {
+  hooks?: Record<string, HostObservable<unknown>>
+  props?: Record<string, unknown>
+}
+
+/** Static standard-props roster plus its per-session resolver. */
+export interface SessionProvideDescriptor {
+  hooks?: readonly string[]
+  props?: readonly string[]
+  /** @param binding - live session binding. @returns this provider's members. */
+  resolve(binding: SessionBinding): SessionProvideContribution
+}
 
 /** The sessions-service face injected as `ctx.sessions`. */
 export interface ISessions {

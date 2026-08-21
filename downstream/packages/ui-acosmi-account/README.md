@@ -4,6 +4,8 @@ English | [中文](README.zh.md)
 
 Private DSH-GUI client plugin for Acosmi account onboarding, account status, membership, quota, and the evidence-gated quota-benefit card. It receives only generated client-safe account DTOs; tokens, account identifiers, and raw billing responses remain in the Host utility process.
 
+Slot registrations pass the account store through `inject.hooks.snapshot`; the UI renderer owns the React binding and supplies components with `useSnapshot`. The account plugin therefore depends only on the slot contract, not on a renderer implementation.
+
 The numeric comparison is fail closed. The card renders a ratio only when `account-acosmi` supplies a current `quotaMultiplierClaim` derived from a typed subscription plan; otherwise it renders neutral membership copy.
 
 This package also keeps the official DeepSeek API-key route available as the alternate onboarding path and displays the community-distribution disclaimer.

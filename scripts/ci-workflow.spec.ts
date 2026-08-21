@@ -74,6 +74,13 @@ describe('CI workflow', () => {
     expect(windowsNative['runs-on']).toContain('windows-2025')
     expect(windowsNative.name).toBe('windows node 24 / native complete')
     expect(windowsNative.if).toBe("github.event_name == 'pull_request'")
+    expect(windowsNative.env).toMatchObject({
+      DSH_COVERAGE_MAX_WORKERS: "${{ github.repository == 'deepseek-ai/deepseek-harness' && '6' || '2' }}",
+      DSH_COVERAGE_PARTITIONS: "${{ github.repository == 'deepseek-ai/deepseek-harness' && '8' || '' }}",
+      DSH_COVERAGE_TEST_TIMEOUT_MS: '30000',
+      DSH_GATE_CONCURRENCY: "${{ github.repository == 'deepseek-ai/deepseek-harness' && '4' || '2' }}",
+      DSH_PUBLINT_CONCURRENCY: "${{ github.repository == 'deepseek-ai/deepseek-harness' && '8' || '2' }}",
+    })
     const nativeCommandSteps = (windowsNative.steps as unknown[]).filter((step): step is Record<string, unknown> & { run: string } => (
       isRecord(step) && typeof step.run === 'string'
     ))
@@ -110,6 +117,17 @@ describe('CI workflow', () => {
     expect(aggregate['runs-on']).toContain('vm-backup')
     expect(aggregate['runs-on']).toContain("github.repository == 'deepseek-ai/deepseek-harness'")
     expect(aggregate['runs-on']).toContain('ubuntu-latest')
+    expect(node24Coverage.env).toMatchObject({
+      DSH_COVERAGE_MAX_WORKERS: "${{ github.repository == 'deepseek-ai/deepseek-harness' && '6' || '2' }}",
+      DSH_COVERAGE_PARTITIONS: "${{ github.repository == 'deepseek-ai/deepseek-harness' && '4' || '2' }}",
+      DSH_GATE_CONCURRENCY: "${{ github.repository == 'deepseek-ai/deepseek-harness' && '3' || '2' }}",
+    })
+    expect(node24Consumers.env).toMatchObject({
+      DSH_GATE_CONCURRENCY: "${{ github.repository == 'deepseek-ai/deepseek-harness' && '8' || '2' }}",
+      DSH_OXLINT_THREADS: "${{ github.repository == 'deepseek-ai/deepseek-harness' && '8' || '2' }}",
+      DSH_PUBLINT_CONCURRENCY: "${{ github.repository == 'deepseek-ai/deepseek-harness' && '8' || '2' }}",
+      DSH_WEB_SNAPSHOT_WORKERS: "${{ github.repository == 'deepseek-ai/deepseek-harness' && '6' || '2' }}",
+    })
   })
 
   it('exempts push from cancellation, so one master merge does not cancel the running drill', () => {
@@ -242,7 +260,7 @@ describe('E2B e2e workflow', () => {
   })
 })
 
-describe('Real API e2e workflow', () => {
+describe('DeepSeek e2e workflow', () => {
   it('runs only in the secret-owning repository and skips untrusted pull requests', () => {
     const workflow = loadWorkflow('.github/workflows/e2e.yml')
     const e2e = workflowJob(workflow, 'e2e')
@@ -252,6 +270,18 @@ describe('Real API e2e workflow', () => {
     expect(e2e.if).toContain("github.event_name != 'pull_request'")
     expect(e2e.if).toContain('github.event.pull_request.head.repo.fork')
     expect(e2e.if).toContain("github.event.pull_request.user.login == 'dependabot[bot]'")
+  })
+
+  it('prepares bubblewrap from the pinned payload without a package transaction', () => {
+    const workflow = loadWorkflow('.github/workflows/e2e.yml')
+    const e2e = workflowJob(workflow, 'e2e')
+    if (!Array.isArray(e2e.steps)) throw new TypeError('DeepSeek e2e workflow must define steps')
+
+    const steps = e2e.steps.filter(isRecord)
+    expect(steps.find(step => step.name === 'Prepare bubblewrap (unrestrict userns)')).toMatchObject({
+      run: 'bash scripts/prepare-ci-bubblewrap.sh',
+    })
+    expect(JSON.stringify(steps)).not.toContain('apt-get')
   })
 })
 
@@ -285,7 +315,10 @@ describe('Python release workflows', () => {
       },
     })
     expect(pythonCompat.strategy).toMatchObject({ matrix: { python: ['3.10', '3.14'] } })
-    expect(JSON.stringify(pythonCompat.steps)).toContain('deepseek-harness-sdk==${{ steps.compatibility-version.outputs.version }}')
+    const pythonCompatSteps = JSON.stringify(pythonCompat.steps)
+    expect(pythonCompatSteps).toContain('dist/deepseek_harness_sdk-$VERSION-py3-none-any.whl')
+    expect(pythonCompatSteps).toContain('dist/deepseek_harness_runtime_bin-$VERSION-py3-none-manylinux_2_28_x86_64.whl')
+    expect(pythonCompatSteps).not.toContain('--find-links')
     const validateSteps = JSON.stringify(validate.steps)
     const authorize = validate.steps.filter(isRecord).find(step => step.name === 'Authorize publication request')
     if (!isRecord(authorize) || typeof authorize.run !== 'string') {
@@ -361,11 +394,19 @@ describe('Python release workflows', () => {
     expect(plan.if).toContain('inputs.ci')
     expect(plan.if).toContain('inputs.release')
     expect(JSON.stringify(plan.steps)).toContain('pep440_version')
-    expect(JSON.stringify(workflow)).toContain('macosx_14_0_arm64')
+    const workflowJson = JSON.stringify(workflow)
+    expect(workflowJson).toContain('macosx_14_0_arm64')
+    expect(workflowJson).toContain('dist-python/$SDK_WHEEL')
+    expect(workflowJson).toContain('dist-python/$RUNTIME_WHEEL')
+    expect(workflowJson).toContain('/work/dist-python/$SDK_WHEEL')
+    expect(workflowJson).toContain('/work/dist-python/$RUNTIME_WHEEL')
+    expect(workflowJson).not.toContain('--find-links dist-python')
+    expect(workflowJson).not.toContain('--find-links /work/dist-python')
     expect(manylinuxAddon).toMatchObject({ if: "runner.os == 'Linux'" })
     expect(manylinuxAddon.run).toContain('pnpm exec node-gyp configure --directory="$addon_dir"')
     expect(JSON.stringify(manylinuxAddon)).toContain('manylinux_2_28_x86_64')
     expect(JSON.stringify(manylinuxAddon)).toContain('manylinux_2_28_aarch64')
+    expect(JSON.stringify(manylinuxAddon)).toContain('npm_config_build_from_source=true pnpm run install')
     expect(JSON.stringify(manylinuxAddon)).toContain('$HOME/setup-pnpm:$HOME/setup-pnpm:ro')
     expect(JSON.stringify(manylinuxAddon)).toContain('node-pty-glibc-versions.txt')
     expect(JSON.stringify(manylinuxAddon)).toContain('le 2.28')

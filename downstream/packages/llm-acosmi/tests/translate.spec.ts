@@ -4,17 +4,19 @@ import {
   ACOSMI_TOOL_NAME_COLLISION_CODE,
   ACOSMI_WINDOW_LIMIT_CODE,
 } from '../src/errors.ts'
+import { BlockAssembler } from '@deepseek-ai/dsh-llm'
+import type { StreamChunk } from '@deepseek-ai/dsh-llm'
 import { translateAcosmiStream } from '../src/translate.ts'
 
 function event(name: string, value: unknown, metadata: Partial<StreamEvent> = {}): StreamEvent {
   return { event: name, data: JSON.stringify(value), ...metadata } as StreamEvent
 }
 
-async function collect(events: StreamEvent[]): Promise<unknown[]> {
+async function collect(events: StreamEvent[]): Promise<StreamChunk[]> {
   async function* source(): AsyncIterable<StreamEvent> {
     for (const item of events) yield item
   }
-  const result: unknown[] = []
+  const result: StreamChunk[] = []
   for await (const item of translateAcosmiStream(source(), 'managed-model')) result.push(item)
   return result
 }
@@ -55,13 +57,16 @@ describe('Acosmi stream translation', () => {
         type: 'finish',
         reason: { kind: 'tool-calls' },
         replayState: {
-          format: 'acosmi-anthropic-v1',
-          version: 1,
-          model: 'managed-model',
-          content: [
-            { type: 'thinking', thinking: 'reason', signature: 'sig' },
-            { type: 'text', text: 'prefix' },
-            { type: 'tool_use', id: 'call-1', name: 'lookup', input: { q: 'x' } },
+          response: {
+            format: 'acosmi-anthropic-v2',
+            version: 2,
+            model: 'managed-model',
+            hidden: [],
+          },
+          blocks: [
+            { index: 0, content: { type: 'thinking', thinking: 'reason', signature: 'sig' } },
+            { index: 1, content: { type: 'text', text: 'prefix' } },
+            { index: 2, content: { type: 'tool_use', id: 'call-1', name: 'lookup', input: { q: 'x' } } },
           ],
         },
       },
@@ -84,16 +89,47 @@ describe('Acosmi stream translation', () => {
         type: 'finish',
         reason: { kind: 'stop' },
         replayState: {
-          format: 'acosmi-anthropic-v1',
-          version: 1,
-          model: 'managed-model',
-          content: [
-            { type: 'redacted_thinking', data: 'opaque' },
-            { type: 'text', text: 'answer' },
+          response: {
+            format: 'acosmi-anthropic-v2',
+            version: 2,
+            model: 'managed-model',
+            hidden: [{ index: 0, content: { type: 'redacted_thinking', data: 'opaque' } }],
+          },
+          blocks: [
+            { index: 1, content: { type: 'text', text: 'answer' } },
           ],
         },
       },
     ])
+  })
+
+  it('aligns visible replay blocks so max-token assembly prunes an unsafe tool call', async () => {
+    const chunks = await collect([
+      event('content_block_start', { index: 0, content_block: { type: 'redacted_thinking', data: 'opaque' } }),
+      event('content_block_stop', { index: 0 }),
+      event('content_block_start', { index: 1, content_block: { type: 'text', text: 'partial' } }),
+      event('content_block_stop', { index: 1 }),
+      event('content_block_start', {
+        index: 2,
+        content_block: { type: 'tool_use', id: 'call-1', name: 'lookup', input: { q: 'unsafe' } },
+      }),
+      event('content_block_stop', { index: 2 }),
+      event('message_delta', { delta: { stop_reason: 'max_tokens' } }),
+      event('message_stop', {}),
+    ])
+    const assembler = new BlockAssembler()
+    for (const chunk of chunks) assembler.push(chunk)
+
+    expect(assembler.blocks()).toEqual([{ type: 'text', text: 'partial' }])
+    expect(assembler.replayState).toEqual({
+      response: {
+        format: 'acosmi-anthropic-v2',
+        version: 2,
+        model: 'managed-model',
+        hidden: [{ index: 0, content: { type: 'redacted_thinking', data: 'opaque' } }],
+      },
+      blocks: [{ index: 1, content: { type: 'text', text: 'partial' } }],
+    })
   })
 
   it('keeps managed web-search blocks out of Harness tools while preserving citations and ephemeral replay', async () => {
@@ -160,24 +196,34 @@ describe('Acosmi stream translation', () => {
         type: 'finish',
         reason: { kind: 'stop' },
         replayState: {
-          format: 'acosmi-anthropic-v1',
-          version: 1,
-          model: 'managed-model',
-          content: [
-            {
-              type: 'server_tool_use',
-              id: 'srv-1',
-              name: 'web_search',
-              input: { query: 'current evidence' },
-              acosmi_ephemeral: true,
-            },
-            {
-              type: 'web_search_tool_result',
-              tool_use_id: 'srv-1',
-              content: [{ type: 'web_search_result', url: citation.url, title: citation.title }],
-              acosmi_ephemeral: true,
-            },
-            { type: 'text', text: 'Answer', citations: [citation] },
+          response: {
+            format: 'acosmi-anthropic-v2',
+            version: 2,
+            model: 'managed-model',
+            hidden: [
+              {
+                index: 0,
+                content: {
+                  type: 'server_tool_use',
+                  id: 'srv-1',
+                  name: 'web_search',
+                  input: { query: 'current evidence' },
+                  acosmi_ephemeral: true,
+                },
+              },
+              {
+                index: 1,
+                content: {
+                  type: 'web_search_tool_result',
+                  tool_use_id: 'srv-1',
+                  content: [{ type: 'web_search_result', url: citation.url, title: citation.title }],
+                  acosmi_ephemeral: true,
+                },
+              },
+            ],
+          },
+          blocks: [
+            { index: 2, content: { type: 'text', text: 'Answer', citations: [citation] } },
           ],
         },
       },

@@ -14,7 +14,7 @@ The packaging path also allowed electron-builder to skip notarization when no re
 
 `DSH_DESKTOP_RELEASE_MODE` has three closed values. `development` keeps ad hoc macOS signing and may use a dirty source tree. `candidate` requires a clean tree, the recorded Developer ID Application SHA-1, and exactly one complete Apple notarization credential family, but runs only the ordinary six-ledger consistency check. `stable` applies the same signing requirements and additionally requires every stable input, frozen product commit, compatibility record, legal identity, and responsibility record through the existing signed-readiness check.
 
-Candidate and stable applications both report the cryptographic fact `signing: signed`, so OS-protected secret storage is available. That value does not represent release promotion. Candidate packaging does not modify a ledger, mark an external input ready, publish an artifact, or authorize stable promotion.
+Candidate and stable applications both report the cryptographic fact `signing: signed`, so the runtime selects OS-protected secret storage and its operations fail closed if encryption is unavailable. That value does not represent release promotion. Candidate packaging does not modify a ledger, mark an external input ready, publish an artifact, or authorize stable promotion.
 
 The credential preflight accepts one complete App Store Connect API-key family, Apple-ID app-password family, or notarytool keychain-profile family. Partial or mixed families fail before staging. Credential values remain process inputs and never enter repository files, artifact logs, or build metadata.
 

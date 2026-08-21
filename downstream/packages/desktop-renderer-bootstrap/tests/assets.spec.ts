@@ -1,10 +1,20 @@
 import { createHash } from 'node:crypto'
 import type { WebBootGraph } from '@deepseek-ai/dsh-client-modules/client'
+import { PLATFORM_MODULES } from '@deepseek-ai/dsh-client-web/src/platform.ts'
 import { describe, expect, it } from 'vitest'
 import { validateDesktopGraph } from '../src/client.ts'
-import { renderDesktopAssetManifest } from '../src/index.ts'
+import { DESKTOP_CLIENT_ALLOWLIST, renderDesktopAssetManifest } from '../src/index.ts'
 
 describe('desktop renderer asset manifest generation', () => {
+  it('includes the dynamic UI renderer in the production client graph', () => {
+    expect(DESKTOP_CLIENT_ALLOWLIST).toContain('@deepseek-ai/dsh-client-ui-renderer')
+  })
+
+  it('keeps UI primitives in the shell-static baseline instead of the dynamic graph', () => {
+    expect(PLATFORM_MODULES).toContain('@deepseek-ai/dsh-client-ui-primitives')
+    expect(DESKTOP_CLIENT_ALLOWLIST).not.toContain('@deepseek-ai/dsh-client-ui-primitives')
+  })
+
   it('records deterministic SHA-256 values for exact final bytes', () => {
     const files = new Map<string, string | Uint8Array>([
       ['plugins/demo.js', new Uint8Array([1, 2, 3])],

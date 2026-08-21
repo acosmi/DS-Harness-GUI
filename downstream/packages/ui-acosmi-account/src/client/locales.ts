@@ -36,7 +36,7 @@ export const zh = {
   onboardingAcosmi: '使用 Acosmi 账户',
   onboardingDeepSeek: '使用 DeepSeek API 密钥',
   loginUnavailable: 'Acosmi 桌面登录完成安全验证后开放；DeepSeek API 密钥路径仍可正常使用。',
-  sessionOnly: '当前为未签名开发构建：登录信息仅保留到本次 DSH-GUI 关闭，不会访问 macOS 钥匙串。',
+  sessionOnly: '当前无法建立 OS 保护的密钥存储；登录信息仅保留到本次 DSH-GUI 关闭。',
   modelRouteNotice: '标有“Acosmi ·”的模型使用会员额度；“DeepSeek”分组使用官方 API Key。',
 } satisfies Record<string, string>
 
@@ -79,6 +79,6 @@ export const en = {
   onboardingAcosmi: 'Use an Acosmi account',
   onboardingDeepSeek: 'Use a DeepSeek API key',
   loginUnavailable: 'Acosmi desktop sign-in will open after its security validation; the DeepSeek API-key route remains available.',
-  sessionOnly: 'This unsigned development build keeps sign-in only until DSH-GUI closes and does not access macOS Keychain.',
+  sessionOnly: 'OS-protected secret storage is unavailable; sign-in is kept only until DSH-GUI closes.',
   modelRouteNotice: 'Models labeled “Acosmi ·” use membership quota; the “DeepSeek” group uses an official API key.',
 } satisfies Record<AcosmiAccountKey, string>

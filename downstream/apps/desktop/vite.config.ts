@@ -8,9 +8,10 @@ import {
   buildDesktopRendererAssets,
   renderDesktopAssetManifest,
 } from '@acosmi/dsh-desktop-renderer-bootstrap'
+import { PLATFORM_MODULES } from '@deepseek-ai/dsh-client-web/src/platform.ts'
 import { DSH_GUI_LOGO_ASSET_PATH } from '../../packages/ui-desktop/src/client/branding.ts'
 
-const renderer = buildDesktopRendererAssets(import.meta.url)
+const renderer = buildDesktopRendererAssets(import.meta.url, PLATFORM_MODULES)
 const source = (relativePath: string): string => fileURLToPath(new URL(relativePath, import.meta.url))
 const productLogo = readFileSync(source(`../../../assets/${DSH_GUI_LOGO_ASSET_PATH}`))
 
@@ -63,17 +64,15 @@ export default defineConfig({
     'process.env.CORDIS_SHARED': 'undefined',
   },
   resolve: {
-    // Keep this browserization list aligned with apps/web/vite.config.ts. The
-    // Electron renderer consumes the same upstream shell source while every
-    // product plugin remains an immutable runtime bundle from the allowlist.
+    // Browserize the shell's Node import as apps/web does. The Electron
+    // renderer consumes the current upstream shell source while every product
+    // client plugin remains an immutable runtime bundle from the allowlist.
     alias: [
       { find: /^node:module$/, replacement: source('../../../apps/web/src/node-module-stub.ts') },
-      { find: /^@deepseek-ai\/dsh-client-web$/, replacement: source('../../../packages/client/web/src/boot.tsx') },
-      { find: /^@deepseek-ai\/dsh-client-web-react$/, replacement: source('../../../packages/client/web-react/src/index.ts') },
+      { find: /^@deepseek-ai\/dsh-client-web$/, replacement: source('../../../packages/client/web/src/index.ts') },
       { find: /^@deepseek-ai\/dsh-client-ui-slots$/, replacement: source('../../../packages/client/ui-slots/src/index.ts') },
       { find: /^@deepseek-ai\/dsh-client-ui-primitives$/, replacement: source('../../../packages/client/ui-primitives/src/index.ts') },
       { find: /^@deepseek-ai\/dsh-client-ui-attachment$/, replacement: source('../../../packages/client/ui-attachment/src/index.ts') },
-      { find: /^@deepseek-ai\/dsh-client-schema-form$/, replacement: source('../../../packages/client/schema-form/src/index.ts') },
       { find: /^@deepseek-ai\/dsh-client-modules\/client$/, replacement: source('../../../packages/client/modules/src/client/index.ts') },
     ],
   },
