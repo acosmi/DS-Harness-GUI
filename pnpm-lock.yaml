@@ -619,6 +619,9 @@ importers:
       '@deepseek-ai/dsh-credentials':
         specifier: workspace:^
         version: link:../../../packages/credentials/credentials
+      '@deepseek-ai/dsh-file-reference':
+        specifier: workspace:^
+        version: link:../../../packages/context/file-reference
       '@deepseek-ai/dsh-fs':
         specifier: workspace:^
         version: link:../../../packages/fs/fs
@@ -631,6 +634,9 @@ importers:
       '@deepseek-ai/dsh-home-paths':
         specifier: workspace:^
         version: link:../../../packages/util/home-paths
+      '@deepseek-ai/dsh-host-apiproxy':
+        specifier: workspace:^
+        version: link:../../../packages/host/apiproxy
       '@deepseek-ai/dsh-host-directory-picker':
         specifier: workspace:^
         version: link:../../../packages/host/directory-picker
@@ -697,6 +703,9 @@ importers:
       '@deepseek-ai/dsh-session-query':
         specifier: workspace:^
         version: link:../../../packages/session-query/session-query
+      '@deepseek-ai/dsh-session-reference':
+        specifier: workspace:^
+        version: link:../../../packages/context/session-reference
       '@deepseek-ai/dsh-session-stats':
         specifier: workspace:^
         version: link:../../../packages/session/session-stats
@@ -751,6 +760,9 @@ importers:
       '@deepseek-ai/dsh-token-meter':
         specifier: workspace:^
         version: link:../../../packages/llm/token-meter
+      '@deepseek-ai/dsh-tool-todo':
+        specifier: workspace:^
+        version: link:../../../packages/todo/tool-todo
       '@deepseek-ai/dsh-tool-workflow':
         specifier: workspace:^
         version: link:../../../packages/workflow/tool-workflow

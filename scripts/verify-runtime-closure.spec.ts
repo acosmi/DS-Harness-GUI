@@ -162,4 +162,91 @@ describe('verifyRuntimeClosure', () => {
     expect(result.workspacePackageCount).toBe(1)
     expect(result.failures).toEqual(['runtime -> @scope/root -> @scope/required'])
   })
+
+  it('keeps deploy-root peers separate from platform-specific preset ownership', async () => {
+    const root = fixture({
+      'downstream/apps/desktop/package.json': {
+        name: 'desktop-app',
+        dependencies: {
+          'desktop-bundle': 'workspace:^',
+          '@scope/root': 'workspace:^',
+          '@scope/pwsh': 'workspace:^',
+        },
+      },
+      'downstream/bundles/desktop/package.json': {
+        name: 'desktop-bundle',
+        dependencies: { '@scope/plugin': 'workspace:^', '@scope/required': 'workspace:^' },
+      },
+      'downstream/release/support-matrix.json': {
+        targets: [
+          { platform: 'darwin', arch: 'arm64' },
+          { platform: 'win32', arch: 'x64' },
+        ],
+      },
+      'apps/cli/config/agent-presets/standard/agent.cordis.yml': `
+- id: plugin
+  name: '@scope/plugin'
+- id: pwsh
+  name: '@scope/pwsh'
+  disabled: !!js process.platform !== 'win32'
+`,
+    })
+    workspace(root, '@scope/root', { peerDependencies: { '@scope/required': 'workspace:^' } })
+    workspace(root, '@scope/plugin', {})
+    workspace(root, '@scope/pwsh', {})
+    workspace(root, '@scope/required', {})
+
+    const result = await verifyRuntimeClosure(root, {
+      deployManifestPath: 'downstream/apps/desktop/package.json',
+      presetResolverManifestPath: 'downstream/bundles/desktop/package.json',
+      targetManifestPath: 'downstream/release/support-matrix.json',
+    })
+
+    expect(result.failures).toEqual([
+      'standard preset -> @scope/pwsh (win32-x64)',
+      'desktop-app -> @scope/root -> @scope/required',
+    ])
+  })
+
+  it('rejects a preset resolver outside the deploy graph', async () => {
+    const root = fixture({
+      'downstream/apps/desktop/package.json': {
+        name: 'desktop-app',
+        dependencies: { '@scope/plugin': 'workspace:^' },
+      },
+      'downstream/bundles/desktop/package.json': {
+        name: 'desktop-bundle',
+        dependencies: { '@scope/plugin': 'workspace:^' },
+      },
+      'python/sdk-runtime/platforms.json': platforms,
+      'apps/cli/config/agent-presets/standard/agent.cordis.yml': `
+- id: plugin
+  name: '@scope/plugin'
+`,
+    })
+    workspace(root, '@scope/plugin', {})
+
+    const result = await verifyRuntimeClosure(root, {
+      deployManifestPath: 'downstream/apps/desktop/package.json',
+      presetResolverManifestPath: 'downstream/bundles/desktop/package.json',
+    })
+
+    expect(result.failures).toEqual([
+      'desktop-app does not reach preset resolver desktop-bundle',
+    ])
+  })
+
+  it('rejects unsupported targets in an explicit target manifest', async () => {
+    const root = fixture({
+      'python/sdk-runtime/package.json': { name: 'runtime', dependencies: {} },
+      'downstream/release/support-matrix.json': {
+        targets: [{ platform: 'freebsd', arch: 'x64' }],
+      },
+      'apps/cli/config/agent-presets/minimal/agent.cordis.yml': '[]\n',
+    })
+
+    await expect(verifyRuntimeClosure(root, {
+      targetManifestPath: 'downstream/release/support-matrix.json',
+    })).rejects.toThrow(/unsupported runtime target "freebsd-x64"/)
+  })
 })

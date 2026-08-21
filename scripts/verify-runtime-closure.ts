@@ -1,8 +1,9 @@
 /**
- * Verify that the executable deploy manifest supplies every plugin referenced
- * by a shipped agent preset and every required workspace peer in its dependency
- * graph. With auto peer installation disabled, either omission can otherwise
- * fail only when Cordis loads the packaged plugin.
+ * Verify that an executable's deploy manifest supplies every required workspace
+ * peer in its dependency graph and that its bare-plugin resolver manifest supplies
+ * every plugin active in a shipped agent preset on a supported target. With auto
+ * peer installation disabled, either omission can otherwise fail only when Cordis
+ * loads the package.
  */
 import { globSync } from 'node:fs'
 import { readFile } from 'node:fs/promises'
@@ -23,12 +24,10 @@ interface WorkspacePackage {
   manifest: PackageManifest
 }
 
-interface RuntimePlatform {
-  tag: string
-  executable: string
+interface RuntimeTarget {
+  label: string
+  processPlatform: string
 }
-
-type RuntimePlatformManifest = Record<string, RuntimePlatform>
 
 const AGENT_PRESET_GLOB = 'apps/cli/config/agent-presets/*/agent.cordis.yml'
 
@@ -38,23 +37,39 @@ export interface RuntimeClosureResult {
   workspacePackageCount: number
 }
 
+/** Manifest inputs that define one executable runtime closure. */
+export interface RuntimeClosureOptions {
+  /** Executable deploy manifest used as the workspace-peer closure root. */
+  deployManifestPath?: string
+  /** Manifest used to resolve bare plugin names from shipped agent presets. */
+  presetResolverManifestPath?: string
+  /** Manifest defining the executable's supported runtime targets. */
+  targetManifestPath?: string
+}
+
 /**
- * Check that the runtime manifest contains every shipped-preset plugin and workspace peer.
+ * Check the selected deploy and resolver manifests for shipped-preset plugins and workspace peers.
  * @param root repository root containing the runtime manifest and shipped presets.
- * @param manifestPath runtime manifest path relative to {@link root}.
+ * @param options manifests defining the deploy root, preset resolver, and supported targets.
  * @returns the discovered preset count, reachable workspace package count, and violations.
  */
 export async function verifyRuntimeClosure(
   root: string,
-  manifestPath = 'python/sdk-runtime/package.json',
+  options: RuntimeClosureOptions = {},
 ): Promise<RuntimeClosureResult> {
-  const runtimeManifest = await loadManifest(resolve(root, manifestPath))
-  const runtimeName = runtimeManifest.name ?? manifestPath
+  const deployManifestPath = options.deployManifestPath ?? 'python/sdk-runtime/package.json'
+  const presetResolverManifestPath = options.presetResolverManifestPath ?? deployManifestPath
+  const targetManifestPath = options.targetManifestPath ?? 'python/sdk-runtime/platforms.json'
+  const deployManifest = await loadManifest(resolve(root, deployManifestPath))
+  const presetResolverManifest = presetResolverManifestPath === deployManifestPath
+    ? deployManifest
+    : await loadManifest(resolve(root, presetResolverManifestPath))
+  const runtimeName = deployManifest.name ?? deployManifestPath
   const workspace = await loadWorkspacePackages(root)
-  const runtimeDependencies = runtimeManifest.dependencies ?? {}
-  const platforms = await loadJson<RuntimePlatformManifest>(resolve(root, 'python/sdk-runtime/platforms.json'))
+  const runtimeDependencies = deployManifest.dependencies ?? {}
+  const presetDependencies = presetResolverManifest.dependencies ?? {}
   const presetPaths = globSync(AGENT_PRESET_GLOB, { cwd: root }).sort()
-  const targets = Object.keys(platforms).sort()
+  const targets = await loadRuntimeTargets(resolve(root, targetManifestPath))
   const parents = new Map<string, string | undefined>()
   const queue: string[] = []
 
@@ -66,8 +81,8 @@ export async function verifyRuntimeClosure(
 
   const failures: string[] = []
   if (presetPaths.length === 0) failures.push(`no agent presets matched ${AGENT_PRESET_GLOB}`)
-  if (targets.length === 0) failures.push('python/sdk-runtime/platforms.json defines no runtime targets')
-  failures.push(...await missingPresetPlugins(root, runtimeDependencies, presetPaths, targets))
+  if (targets.length === 0) failures.push(`${targetManifestPath} defines no runtime targets`)
+  failures.push(...await missingPresetPlugins(root, presetDependencies, presetPaths, targets))
   for (let index = 0; index < queue.length; index += 1) {
     const packageName = queue[index]
     if (packageName === undefined) continue
@@ -90,6 +105,17 @@ export async function verifyRuntimeClosure(
       queue.push(dependency)
     }
   }
+  if (presetResolverManifestPath !== deployManifestPath) {
+    const resolverName = presetResolverManifest.name
+    const resolverPackage = resolverName === undefined ? undefined : workspace.get(resolverName)
+    if (resolverName === undefined
+      || resolverPackage === undefined
+      || resolverPackage.path !== resolve(root, presetResolverManifestPath)) {
+      failures.push(`${presetResolverManifestPath}: preset resolver must be a discovered workspace package`)
+    } else if (!parents.has(resolverName)) {
+      failures.push(`${runtimeName} does not reach preset resolver ${resolverName}`)
+    }
+  }
 
   return {
     failures,
@@ -102,11 +128,22 @@ if (import.meta.main) {
   const root = resolve(import.meta.dirname, '..')
   const { values } = parseArgs({
     args: process.argv.slice(2),
-    options: { manifest: { type: 'string' } },
+    options: {
+      manifest: { type: 'string' },
+      'preset-manifest': { type: 'string' },
+      'target-manifest': { type: 'string' },
+    },
   })
-  const result = await verifyRuntimeClosure(root, values.manifest)
+  const manifestPath = values.manifest ?? 'python/sdk-runtime/package.json'
+  const presetManifestPath = values['preset-manifest'] ?? manifestPath
+  const targetManifestPath = values['target-manifest'] ?? 'python/sdk-runtime/platforms.json'
+  const result = await verifyRuntimeClosure(root, {
+    deployManifestPath: manifestPath,
+    presetResolverManifestPath: presetManifestPath,
+    targetManifestPath,
+  })
   if (result.failures.length > 0) {
-    console.error('verify-runtime-closure: preset plugins or required workspace peers are missing from python/sdk-runtime dependencies:')
+    console.error('verify-runtime-closure: selected manifests do not form a closed runtime dependency graph:')
     for (const failure of result.failures) console.error(`  ${failure}`)
     process.exitCode = 1
   } else {
@@ -120,7 +157,7 @@ async function missingPresetPlugins(
   root: string,
   runtimeDependencies: Readonly<Record<string, string>>,
   presetPaths: readonly string[],
-  targets: readonly string[],
+  targets: readonly RuntimeTarget[],
 ): Promise<string[]> {
   const missing = new Map<string, Set<string>>()
   const failures: string[] = []
@@ -131,8 +168,7 @@ async function missingPresetPlugins(
       continue
     }
     for (const target of targets) {
-      const processPlatform = processPlatformForTarget(target)
-      for (const plugin of activeBarePluginPackages(document, processPlatform)) {
+      for (const plugin of activeBarePluginPackages(document, target.processPlatform)) {
         const version = runtimeDependencies[plugin]
         if (version?.startsWith('workspace:') === true) continue
         const preset = basename(dirname(presetPath))
@@ -141,7 +177,7 @@ async function missingPresetPlugins(
           : ` [runtime dependency is ${JSON.stringify(version)}; expected workspace:]`
         const key = `${preset} preset -> ${plugin}${declaration}`
         const targets = missing.get(key) ?? new Set<string>()
-        targets.add(target)
+        targets.add(target.label)
         missing.set(key, targets)
       }
     }
@@ -179,9 +215,36 @@ function disabledOnPlatform(value: unknown, processPlatform: string): boolean {
 }
 
 function processPlatformForTarget(target: string): string {
-  if (target.startsWith('linux-')) return 'linux'
-  if (target.startsWith('macos-')) return 'darwin'
-  throw new Error(`verify-runtime-closure: unsupported runtime target ${JSON.stringify(target)}`)
+  const match = /^(linux|macos|darwin|win32)-(.+)$/.exec(target)
+  if (match === null) throw new Error(`verify-runtime-closure: unsupported runtime target ${JSON.stringify(target)}`)
+  const platform = match[1]
+  if (platform === undefined) {
+    throw new Error(`verify-runtime-closure: unsupported runtime target ${JSON.stringify(target)}`)
+  }
+  return platform === 'macos' ? 'darwin' : platform
+}
+
+async function loadRuntimeTargets(path: string): Promise<RuntimeTarget[]> {
+  const manifest = await loadJson<unknown>(path)
+  if (!isRecord(manifest)) {
+    throw new Error(`verify-runtime-closure: target manifest ${JSON.stringify(path)} must be an object`)
+  }
+  if (Object.hasOwn(manifest, 'targets')) {
+    if (!Array.isArray(manifest.targets)) {
+      throw new Error(`verify-runtime-closure: target manifest ${JSON.stringify(path)} must define a targets array`)
+    }
+    return manifest.targets.map((target, index) => {
+      if (!isRecord(target) || typeof target.platform !== 'string' || typeof target.arch !== 'string') {
+        throw new Error(`verify-runtime-closure: target manifest ${JSON.stringify(path)} has an invalid target at index ${index}`)
+      }
+      const label = `${target.platform}-${target.arch}`
+      return { label, processPlatform: processPlatformForTarget(label) }
+    }).sort((left, right) => left.label.localeCompare(right.label))
+  }
+  return Object.keys(manifest).sort().map(label => ({
+    label,
+    processPlatform: processPlatformForTarget(label),
+  }))
 }
 
 function barePackageName(specifier: string): string | undefined {
