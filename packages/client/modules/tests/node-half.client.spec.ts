@@ -10,7 +10,12 @@ import { Context } from '@deepseek-ai/cordis'
 import { afterEach, describe, expect, it } from 'vitest'
 import type { WebServer, WebRoute } from '@deepseek-ai/dsh-host-webserver'
 import * as modulesClient from '../src/client/index.ts'
-import { ClientModuleRegistry, injectBootManifest, orderByModuleGraph } from '../src/index.ts'
+import {
+  ClientModuleRegistry,
+  clientBootAssets,
+  injectBootManifest,
+  orderByModuleGraph,
+} from '../src/index.ts'
 import type { ClientModuleLoaderTarget, WebBootEntry, WebBootGraph } from '../src/client/index.ts'
 
 const MODULES_ID = '@deepseek-ai/dsh-client-modules'
@@ -101,6 +106,24 @@ const bootGraph = (): WebBootGraph => ({
 })
 
 describe('HTML bootstrap facade', () => {
+  it('shares one facade source and preserves the available parser preloads', () => {
+    const graph = bootGraph()
+    const assets = clientBootAssets(graph)
+    const html = injectBootManifest('<head></head>', graph)
+
+    expect(html).toContain(`<script>${assets.facadeSource}</script>`)
+    expect(assets.parserPreloads.map(entry => entry.id)).toEqual([MODULES_ID, RUNTIME_ID])
+    const partial = clientBootAssets({
+      rev: 'missing-runtime',
+      entries: [{ id: MODULES_ID, url: '/plugins/modules.js?rev=m', rev: 'm' }],
+    })
+    expect(partial.parserPreloads.map(entry => entry.id)).toEqual([MODULES_ID])
+    expect(injectBootManifest('<head></head>', {
+      rev: 'missing-runtime',
+      entries: [{ id: MODULES_ID, url: '/plugins/modules.js?rev=m', rev: 'm' }],
+    })).toContain('<script src="/plugins/modules.js?rev=m"></script>')
+  })
+
   it('precedes blocking preloads and the boot graph, then becomes the live registration target', async () => {
     const graph = bootGraph()
     const { html, target } = injectedFacade(graph)

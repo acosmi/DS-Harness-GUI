@@ -6,7 +6,9 @@ import { defineConfig, type Plugin } from 'vite'
 import tsconfigPaths from 'vite-tsconfig-paths'
 import {
   buildDesktopRendererAssets,
+  injectDesktopBootPrelude,
   renderDesktopAssetManifest,
+  verifyDesktopRendererOutput,
 } from '@acosmi/dsh-desktop-renderer-bootstrap'
 import { PLATFORM_MODULES } from '@deepseek-ai/dsh-client-web/src/platform.ts'
 import { DSH_GUI_LOGO_ASSET_PATH } from '../../packages/ui-desktop/src/client/branding.ts'
@@ -21,7 +23,14 @@ function desktopAssets(): Plugin {
     name: 'dsh-gui-desktop-assets',
     apply: 'build',
     enforce: 'post',
+    transformIndexHtml: {
+      order: 'post',
+      handler(html) {
+        return injectDesktopBootPrelude(html, renderer)
+      },
+    },
     buildStart() {
+      this.emitFile({ type: 'asset', fileName: renderer.facade.fileName, source: renderer.facade.source })
       for (const asset of renderer.assets) {
         this.emitFile({ type: 'asset', fileName: asset.fileName, source: asset.source })
       }
@@ -29,6 +38,7 @@ function desktopAssets(): Plugin {
     },
     closeBundle() {
       const files = readFinalOutput(outputDirectory)
+      verifyDesktopRendererOutput(files, renderer)
       writeFileSync(
         join(outputDirectory, 'assets.manifest.json'),
         renderDesktopAssetManifest(files),

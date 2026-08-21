@@ -228,6 +228,16 @@ describe('web e2e: queue row actions', () => {
     )
     await compareOrRefreshGolden(LAYOUT_EXPECTED, layoutSnapshot, MODE)
 
+    const frame = page.locator('[class*="frame"]').first()
+    const waitForResponsiveLayout = async (collapsed: boolean) => {
+      await expect.poll(
+        () => frame.getAttribute('data-sidebar-collapsed'),
+        { timeout: 10_000 },
+      ).toBe(collapsed ? 'true' : null)
+      await frame.evaluate(async (element) => {
+        await Promise.all(element.getAnimations().map(animation => animation.finished))
+      })
+    }
     const expectAlignedContextPanels = async () => {
       const queuePanelBox = await page.locator('[data-queue-dock] > div').boundingBox()
       const todoBox = await page.locator('[data-testid="todo-panel"]').boundingBox()
@@ -244,8 +254,10 @@ describe('web e2e: queue row actions', () => {
     }
     await expectAlignedContextPanels()
     await page.setViewportSize({ width: 640, height: 1000 })
+    await waitForResponsiveLayout(true)
     await expectAlignedContextPanels()
     await page.setViewportSize({ width: 1680, height: 1000 })
+    await waitForResponsiveLayout(false)
 
     await queueHeader.click()
     const removeButtons = page.getByRole('button', { name: 'Remove queued message' })

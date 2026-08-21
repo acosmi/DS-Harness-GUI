@@ -9,7 +9,6 @@
   "references": [
     { "path": "../desktop-carrier-electron/tsconfig.client.json" },
     { "path": "../../../packages/client/connection/tsconfig.client.json" },
-    { "path": "../../../packages/client/modules" },
     { "path": "../../../packages/client/web" }
   ]
 }

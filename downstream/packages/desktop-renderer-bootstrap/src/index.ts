@@ -5,6 +5,12 @@ import { readFileSync } from 'node:fs'
 import { createRequire } from 'node:module'
 import { dirname, relative, resolve, sep } from 'node:path'
 import { DESKTOP_RENDERER_ORIGIN } from '@acosmi/dsh-desktop-carrier-electron/protocol'
+import {
+  clientBootAssets,
+  orderByModuleGraph,
+  stripClientSuffix,
+  type WebBootEntry,
+} from '@deepseek-ai/dsh-client-modules'
 
 /** Client packages admitted to the production desktop renderer. */
 export const DESKTOP_CLIENT_ALLOWLIST = [
@@ -60,24 +66,126 @@ export interface DesktopClientAsset {
 }
 
 /** Renderer manifest produced from package metadata and exact bundle bytes. */
-export interface DesktopBootGraph {
-  readonly rev: string
-  readonly entries: readonly DesktopBootEntry[]
+export type DesktopBootGraph = import('@deepseek-ai/dsh-client-modules/client').WebBootGraph
+
+/** One immutable parser-stage renderer asset. */
+export interface DesktopBootAsset {
+  readonly fileName: string
+  readonly source: string
 }
 
-/** One renderer plugin row. */
-export interface DesktopBootEntry {
-  readonly id: string
-  readonly url: string
-  readonly rev: string
-  readonly inject?: readonly string[]
-  readonly immediately?: boolean
+/** Parser-stage files and graph rows that must precede the Vite module. */
+export interface DesktopBootPrelude {
+  readonly facade: DesktopBootAsset
+  readonly parserPreloads: readonly [modules: WebBootEntry, runtime: WebBootEntry]
 }
 
 /** Complete build-time renderer payload. */
-export interface DesktopRendererAssets {
+export interface DesktopRendererAssets extends DesktopBootPrelude {
   readonly graph: DesktopBootGraph
   readonly assets: readonly DesktopClientAsset[]
+}
+
+/**
+ * Add the CSP-compatible external boot prelude before the Vite module entry.
+ * @param html - Vite's transformed renderer document.
+ * @param assets - build-time renderer payload.
+ * @returns the document with blocking facade, modules, and runtime scripts.
+ */
+export function injectDesktopBootPrelude(
+  html: string,
+  assets: DesktopBootPrelude,
+): string {
+  const sources = [
+    `./${assets.facade.fileName}`,
+    ...assets.parserPreloads.map(entry => entry.url),
+  ]
+  const scripts = sources
+    .map(source => `<script src="${escapeHtmlAttribute(source)}"></script>`)
+    .join('')
+  const moduleEntry = findModuleEntry(html)
+  if (moduleEntry === undefined) throw new Error('desktop renderer index omits the Vite module entry')
+  return `${html.slice(0, moduleEntry)}${scripts}${html.slice(moduleEntry)}`
+}
+
+/**
+ * Verify that the built renderer preserves the blocking boot order under CSP.
+ * @param html - final Vite renderer document.
+ * @param assets - expected facade and parser preload rows.
+ */
+export function verifyDesktopBootDocument(
+  html: string,
+  assets: DesktopBootPrelude,
+): void {
+  const requiredSources = [
+    `./${assets.facade.fileName}`,
+    ...assets.parserPreloads.map(entry => entry.url),
+  ]
+  let cursor = -1
+  for (const source of requiredSources) {
+    const tag = `<script src="${escapeHtmlAttribute(source)}"></script>`
+    const found = html.indexOf(tag, cursor + 1)
+    if (found === -1) throw new Error(`desktop renderer boot document omits ${source}`)
+    cursor = found
+  }
+  const moduleEntry = findModuleEntry(html)
+  if (moduleEntry === undefined || moduleEntry <= cursor) {
+    throw new Error('desktop renderer module entry does not follow parser preloads')
+  }
+  for (const match of html.matchAll(/<script\b([^>]*)>/gu)) {
+    if (!/\bsrc="[^"]+"/u.test(match[1] ?? '')) {
+      throw new Error('desktop renderer boot document contains an inline script')
+    }
+  }
+}
+
+/**
+ * Verify the final renderer document and every parser-stage file before hashing it.
+ * @param files - final Vite output paths and exact emitted bytes.
+ * @param assets - expected facade and parser preload rows.
+ */
+export function verifyDesktopRendererOutput(
+  files: ReadonlyMap<string, string | Uint8Array>,
+  assets: DesktopBootPrelude,
+): void {
+  const index = files.get('index.html')
+  if (index === undefined) throw new Error('desktop renderer output omits index.html')
+  verifyDesktopBootDocument(Buffer.from(index).toString('utf8'), assets)
+  const facade = files.get(assets.facade.fileName)
+  if (facade === undefined) throw new Error('desktop renderer output omits the module-loader facade')
+  if (!Buffer.from(facade).equals(Buffer.from(assets.facade.source))) {
+    throw new Error('desktop renderer output changed the module-loader facade bytes')
+  }
+  for (const entry of assets.parserPreloads) {
+    const path = new URL(entry.url).pathname.slice(1)
+    const content = files.get(path)
+    if (content === undefined) throw new Error(`desktop renderer output omits parser preload ${entry.id}`)
+    if (shortHash(content) !== entry.rev) {
+      throw new Error(`desktop renderer output changed parser preload ${entry.id}`)
+    }
+  }
+}
+
+/**
+ * Build the immutable external facade and locate its required graph rows.
+ * @param graph - composed renderer graph.
+ * @returns content-addressed facade and blocking preload rows.
+ */
+export function buildDesktopBootPrelude(graph: DesktopBootGraph): DesktopBootPrelude {
+  const boot = clientBootAssets(graph)
+  const modules = boot.parserPreloads[0]
+  const runtime = boot.parserPreloads[1]
+  if (modules === undefined || runtime === undefined) {
+    throw new Error('desktop renderer boot graph must include modules and runtime parser preloads')
+  }
+  const facadeSource = `${boot.facadeSource}\n`
+  return {
+    facade: {
+      fileName: `bootstrap/module-loader-${shortHash(facadeSource)}.js`,
+      source: facadeSource,
+    },
+    parserPreloads: [modules, runtime],
+  }
 }
 
 /**
@@ -106,6 +214,7 @@ interface ClientDeclaration {
   readonly platform: string
   readonly inject?: readonly string[]
   readonly immediately?: boolean
+  readonly external?: readonly string[]
 }
 
 /**
@@ -120,7 +229,7 @@ export function buildDesktopRendererAssets(
 ): DesktopRendererAssets {
   const require = createRequire(anchorUrl)
   const assets: DesktopClientAsset[] = []
-  const entries: DesktopBootEntry[] = []
+  const entries: WebBootEntry[] = []
   const seen = new Set<string>()
   for (const id of DESKTOP_CLIENT_ALLOWLIST) {
     if (seen.has(id)) throw new Error(`desktop renderer allowlist contains duplicate ${id}`)
@@ -143,17 +252,35 @@ export function buildDesktopRendererAssets(
       rev,
       ...(pkg.client.inject === undefined ? {} : { inject: [...pkg.client.inject] }),
       ...(pkg.client.immediately === true ? { immediately: true } : {}),
+      ...(pkg.client.external === undefined ? {} : { external: [...pkg.client.external] }),
     })
   }
-  assertClosedInjectionGraph(entries, shellStaticModules)
+  const graph = composeDesktopBootGraph(entries, shellStaticModules)
   return {
-    graph: { rev: shortHash(JSON.stringify(entries)), entries },
+    graph,
     assets,
+    ...buildDesktopBootPrelude(graph),
   }
 }
 
+/**
+ * Close and order the immutable desktop module graph.
+ * @param entries - allowlisted renderer rows before module ordering.
+ * @param shellStaticModules - exact shell-seeded module specifiers.
+ * @returns topologically ordered graph with a content revision.
+ */
+export function composeDesktopBootGraph(
+  entries: readonly WebBootEntry[],
+  shellStaticModules: readonly string[],
+): DesktopBootGraph {
+  const orderedEntries = orderByModuleGraph(entries)
+  assertClosedInjectionGraph(orderedEntries, shellStaticModules)
+  assertClosedModuleGraph(orderedEntries, shellStaticModules)
+  return { rev: shortHash(JSON.stringify(orderedEntries)), entries: orderedEntries }
+}
+
 function assertClosedInjectionGraph(
-  entries: readonly DesktopBootEntry[],
+  entries: readonly WebBootEntry[],
   shellStaticModules: readonly string[],
 ): void {
   const services = new Set(entries.map(entry => entry.id))
@@ -175,6 +302,28 @@ function assertClosedInjectionGraph(
   throw new Error(`desktop renderer allowlist has unresolved package services: ${details}`)
 }
 
+function assertClosedModuleGraph(
+  entries: readonly WebBootEntry[],
+  shellStaticModules: readonly string[],
+): void {
+  const dynamicModules = new Set(entries.map(entry => entry.id))
+  const staticModules = new Set(shellStaticModules)
+  const missing = new Map<string, string[]>()
+  for (const entry of entries) {
+    for (const request of entry.external ?? []) {
+      if (staticModules.has(request) || dynamicModules.has(stripClientSuffix(request))) continue
+      const consumers = missing.get(request) ?? []
+      consumers.push(entry.id)
+      missing.set(request, consumers)
+    }
+  }
+  if (missing.size === 0) return
+  const details = [...missing]
+    .map(([request, consumers]) => `${request} requested by ${consumers.join(', ')}`)
+    .join('; ')
+  throw new Error(`desktop renderer allowlist has unresolved module requests: ${details}`)
+}
+
 function parsePackageJson(
   id: string,
   packageJsonPath: string,
@@ -193,14 +342,31 @@ function parsePackageJson(
   if (record.immediately !== undefined && typeof record.immediately !== 'boolean') {
     throw new Error(`desktop renderer: ${id} has invalid dsh.client.immediately`)
   }
+  if (record.external !== undefined
+    && (!Array.isArray(record.external) || record.external.some(value => typeof value !== 'string'))) {
+    throw new Error(`desktop renderer: ${id} has invalid dsh.client.external`)
+  }
   return {
     exports: raw.exports,
     client: {
       platform: 'web',
       ...(record.inject === undefined ? {} : { inject: record.inject as string[] }),
       ...(record.immediately === undefined ? {} : { immediately: record.immediately }),
+      ...(record.external === undefined ? {} : { external: record.external as string[] }),
     },
   }
+}
+
+function escapeHtmlAttribute(value: string): string {
+  return value
+    .replaceAll('&', '&amp;')
+    .replaceAll('"', '&quot;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;')
+}
+
+function findModuleEntry(html: string): number | undefined {
+  return /<script\b(?=[^>]*\btype="module")[^>]*>/u.exec(html)?.index
 }
 
 function clientExportOf(id: string, exportsField: unknown): string {
@@ -223,7 +389,7 @@ function stripSourceMap(source: string): string {
   return source.replace(/\n?\/\/# sourceMappingURL=[^\n]*\n?$/u, '\n')
 }
 
-function shortHash(input: string): string {
+function shortHash(input: string | Uint8Array): string {
   return createHash('sha256').update(input).digest('hex').slice(0, 16)
 }
 

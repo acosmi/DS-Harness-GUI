@@ -6,7 +6,7 @@
 
 惰性 CJS 模型（web2）：执行插件 bundle 只会注册其 factory（`window.__ModuleLoader__.load({id, factory})`）；每个模块主体的副作用（包括 CSS 注入）都位于 factory 闭包中，在物化时运行（`factory(require)` → 导出表层，并在 `loadCache` 中记忆化），不会在脚本执行时运行。如果 factory 依赖另一个已注册但尚未物化的模块，系统会递归物化它；图组合会把声明的动态请求提供方放在消费者之前，而 require 循环会抛出异常，因为 factory 形式的 CJS 无法提供部分导出。`<id>/client` 与裸 id 指向同一表层（一个插件 bundle 就是其包的客户端侧）。
 
-Host 会在 parser preload 运行前安装 `window.__ModuleLoader__`。其 queue 模式的 `load()` 保存提前到达的 registration；`create()` 使用拒绝 external 的 bootstrap require 物化本包 factory，并调用其 `createClientModuleSystem` 导出。构造过程把同一组导出缓存为 modules row，把同一个 facade 切换到 live registration，再排空余下 queue。Bundle 通过模块闭包保留生成的系统，因此随后 Cordis `apply()` 能把同一实例提供为 `ctx.modules`，无需另一个页面全局变量。
+Host 会在 parser preload 运行前安装 `window.__ModuleLoader__`。其 queue 模式的 `load()` 保存提前到达的 registration；`create()` 使用拒绝 external 的 bootstrap require 物化本包 factory，并调用其 `createClientModuleSystem` 导出。构造过程把同一组导出缓存为 modules row，把同一个 facade 切换到 live registration，再排空余下 queue。Host 侧的 `clientBootAssets()` 是该 facade 与图中已有 modules/runtime preload row 的唯一来源，因此 HTTP shell 与打包 shell 可以在共享同一协议的同时，分别选择 inline 或同源外部资源交付。Bundle 通过模块闭包保留生成的系统，因此随后 Cordis `apply()` 能把同一实例提供为 `ctx.modules`，无需另一个页面全局变量。
 
 解析分支顺序（`import(specifier)`）：平台种子词 → 外壳实例；记忆化记录 → 导出；模块图记录（`window.__DSH_BOOT__`）→ 登记其 classic-script factory；已登记 factory → 物化；其他情况一律抛出异常。这是构建时 bundle 纯度门禁的运行时镜像。交给 factory 的同步 `require` 采用相同顺序，但不含异步 graph-row 加载分支，并把观察到的边记录到模块记录中。`prefetch` 是第一阶段到达钩子（只加载脚本并登记 factory；并发调用共享一个进行中的任务）；`invalidate` 会丢弃非 bootstrap factory 与物化记录，使下一次 prefetch/import 重新加载脚本；它是 HMR（热模块替换）钩子。
 
