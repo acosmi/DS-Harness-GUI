@@ -3,12 +3,11 @@
 import { createElectronConnectionCarrier } from '@acosmi/dsh-desktop-carrier-electron/client'
 import { isDesktopRendererUrl } from '@acosmi/dsh-desktop-carrier-electron/protocol'
 import { installConnectionCarrier } from '@deepseek-ai/dsh-client-connection/carrier'
-import type { WebBootGraph } from '@deepseek-ai/dsh-client-modules/client'
 import { AppWebEntry } from '@deepseek-ai/dsh-client-web'
 
 /** Mounted desktop renderer and its deterministic teardown. */
 export interface DesktopRendererMount {
-  dispose(): void
+  dispose(): Promise<void>
 }
 
 /**
@@ -19,7 +18,7 @@ export interface DesktopRendererMount {
  */
 export async function mountDesktopRenderer(
   root: HTMLElement,
-  graph: WebBootGraph,
+  graph: unknown,
 ): Promise<DesktopRendererMount> {
   validateDesktopGraph(graph)
   const target = globalThis as typeof globalThis & { __DSH_BOOT__?: unknown }
@@ -35,22 +34,38 @@ export async function mountDesktopRenderer(
     throw error
   }
   return {
-    dispose() {
-      entry.dispose()
-      uninstallCarrier()
-      delete target.__DSH_BOOT__
+    async dispose() {
+      try {
+        await entry.dispose()
+      } finally {
+        uninstallCarrier()
+        delete target.__DSH_BOOT__
+      }
     },
   }
 }
 
 /**
- * Validate the immutable renderer graph before exposing it to upstream code.
- * @param graph - build-time generated client graph.
+ * Validate executable desktop bundle rows before exposing the raw graph to the upstream parser.
+ * @param graph - raw build-time generated client graph.
  */
-export function validateDesktopGraph(graph: WebBootGraph): void {
-  if (graph.entries.length === 0) throw new Error('desktop renderer graph is empty')
+export function validateDesktopGraph(graph: unknown): void {
+  if (typeof graph !== 'object' || graph === null) {
+    throw new Error('desktop renderer graph is missing')
+  }
+  const wire = graph as Record<string, unknown>
+  if (!Array.isArray(wire.entries)) throw new Error('desktop renderer graph entries are missing')
+  if (wire.entries.length === 0) throw new Error('desktop renderer graph is empty')
   const ids = new Set<string>()
-  for (const entry of graph.entries) {
+  for (const value of wire.entries as unknown[]) {
+    if (typeof value !== 'object' || value === null) {
+      throw new Error('desktop renderer graph entry is not an object')
+    }
+    const entry = value as Record<string, unknown>
+    if (typeof entry.id !== 'string' || typeof entry.url !== 'string'
+      || typeof entry.rev !== 'string') {
+      throw new Error('desktop renderer graph entry must carry string id/url/rev')
+    }
     if (ids.has(entry.id)) throw new Error(`desktop renderer graph contains duplicate ${entry.id}`)
     ids.add(entry.id)
     const url = new URL(entry.url)

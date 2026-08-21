@@ -1,14 +1,5 @@
 declare global {
-  const __DSH_DESKTOP_BOOT__: {
-    readonly rev: string
-    readonly entries: readonly {
-      readonly id: string
-      readonly url: string
-      readonly rev: string
-      readonly inject?: readonly string[]
-      readonly immediately?: boolean
-    }[]
-  }
+  const __DSH_DESKTOP_BOOT__: unknown
   const __DSH_BUILD_FACTS__: {
     readonly channel: 'stable' | 'canary'
     readonly productCommit: string

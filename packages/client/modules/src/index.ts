@@ -225,8 +225,51 @@ const CLIENT_MODULES_ID = '@deepseek-ai/dsh-client-modules'
 /** Dynamic package whose ordinary client bundle must be registered before plugin boot starts. */
 const CLIENT_RUNTIME_ID = '@deepseek-ai/dsh-client-runtime'
 
-/** Ordinary dynamic bundles the HTML parser executes before the Vite shell. */
+/** Ordinary dynamic bundles the parser executes before the Vite shell. */
 const PARSER_PRELOAD_IDS = [CLIENT_MODULES_ID, CLIENT_RUNTIME_ID] as const
+
+/** Parser-stage assets a Host shell can place before client module-system creation. */
+export interface ClientBootAssets {
+  /** Queue-mode facade source, without a surrounding script element. */
+  readonly facadeSource: string
+  /** Available blocking classic-script rows in modules-then-runtime order. */
+  readonly parserPreloads: readonly WebBootEntry[]
+}
+
+/**
+ * Render the shared parser-stage boot assets for a composed graph.
+ * @param graph - the composed entry graph.
+ * @returns the queue facade source and available blocking preload rows.
+ */
+export function clientBootAssets(graph: WebBootGraph): ClientBootAssets {
+  const bootstrapId = JSON.stringify(CLIENT_MODULES_ID)
+  const facadeSource = `(()=>{
+const pendingQueue=[]
+window.__ModuleLoader__={
+  mode:"queue",
+  pendingQueue,
+  load(registration){pendingQueue.push(registration)},
+  create(options){
+    if(this.mode!=="queue")throw new Error("client-modules: window.__ModuleLoader__.create called after module-system boot")
+    const index=pendingQueue.findIndex(registration=>registration.id===${bootstrapId})
+    const registration=pendingQueue[index]
+    if(registration===undefined)throw new Error("client-modules: HTML did not preload ${CLIENT_MODULES_ID}/client.js")
+    pendingQueue.splice(index,1)
+    const exports=registration.factory(specifier=>{
+      throw new Error('client-modules: ${CLIENT_MODULES_ID}/client.js requested external "'+specifier+'" before the module system existed')
+    })
+    if(typeof exports!=="object"||exports===null||typeof exports.createClientModuleSystem!=="function"||typeof exports.apply!=="function"){
+      throw new Error("client-modules: ${CLIENT_MODULES_ID}/client.js did not export the bootstrap module face")
+    }
+    return exports.createClientModuleSystem(this,{id:registration.id,exports},options)
+  }
+}
+})()`
+  const parserPreloads = PARSER_PRELOAD_IDS
+    .map(id => graph.entries.find(entry => entry.id === id))
+    .filter((entry): entry is WebBootEntry => entry !== undefined)
+  return { facadeSource, parserPreloads }
+}
 
 /** Escape a graph URL before placing it in a quoted HTML attribute. */
 function escapeHtmlAttribute(value: string): string {
@@ -251,31 +294,9 @@ function escapeHtmlAttribute(value: string): string {
  */
 export function injectBootManifest(html: string, graph: WebBootGraph): string {
   const json = JSON.stringify(graph).replaceAll('<', '\\u003c')
-  const bootstrapId = JSON.stringify(CLIENT_MODULES_ID)
-  const queue = `<script>(()=>{
-const pendingQueue=[]
-window.__ModuleLoader__={
-  mode:"queue",
-  pendingQueue,
-  load(registration){pendingQueue.push(registration)},
-  create(options){
-    if(this.mode!=="queue")throw new Error("client-modules: window.__ModuleLoader__.create called after module-system boot")
-    const index=pendingQueue.findIndex(registration=>registration.id===${bootstrapId})
-    const registration=pendingQueue[index]
-    if(registration===undefined)throw new Error("client-modules: HTML did not preload ${CLIENT_MODULES_ID}/client.js")
-    pendingQueue.splice(index,1)
-    const exports=registration.factory(specifier=>{
-      throw new Error('client-modules: ${CLIENT_MODULES_ID}/client.js requested external "'+specifier+'" before the module system existed')
-    })
-    if(typeof exports!=="object"||exports===null||typeof exports.createClientModuleSystem!=="function"||typeof exports.apply!=="function"){
-      throw new Error("client-modules: ${CLIENT_MODULES_ID}/client.js did not export the bootstrap module face")
-    }
-    return exports.createClientModuleSystem(this,{id:registration.id,exports},options)
-  }
-}
-})()</script>`
-  const preload = PARSER_PRELOAD_IDS.map(id => graph.entries.find(entry => entry.id === id))
-    .filter((entry): entry is WebBootEntry => entry !== undefined)
+  const assets = clientBootAssets(graph)
+  const queue = `<script>${assets.facadeSource}</script>`
+  const preload = assets.parserPreloads
     .map(entry => `<script src="${escapeHtmlAttribute(entry.url)}"></script>`)
     .join('')
   const script = `${queue}${preload}<script>window.__DSH_BOOT__ = ${json}</script>`
