@@ -14,13 +14,13 @@ Status: implemented
 
 仓库将默认 `GITHUB_TOKEN` 权限保持为只读，并在仓库级允许 GitHub Actions 创建 PR。只有提案工作流授予 `pull-requests: write`，同时保留 `contents: read`。仓库测试扫描全部工作流，拒绝另一项 PR 写入方，把本工作流的 GitHub CLI 动词固定为 PR 列举与创建，并拒绝直接调用 Git。
 
-`main` 保护规则要求所有主体（包括管理员）都通过 PR，要求 `e2e` 与 `all checks passed`，要求解决评审对话，并禁止强制推送和删除。其推送限制允许清单仅列出唯一的仓库管理员，因此对 `main` 的直接推送仅限于该账户；包括自动化工作流在内的其他所有主体都必须通过 PR 提出更改。批准数保持为零，避免只有一名管理员的仓库死锁；由管理员执行合并就是人工接受步骤。必需检查的拓扑仍由[可移植 PR CI 决策](2026-07-23-portable-required-pull-request-ci.md)规定。
+`main` 保护规则要求所有主体（包括管理员）都通过 PR，要求解决评审对话，并禁止强制推送和删除。它不要求 GitHub Actions 状态检查；该 overlay 政策由 [DSH-GUI 手动 GitHub Actions](2026-08-21-dsh-gui-manual-github-actions.zh.md) 规定。其推送限制允许清单仅列出唯一的仓库管理员，因此对 `main` 的直接推送仅限于该账户；包括自动化工作流在内的其他所有主体都必须通过 PR 提出更改。批准数保持为零，避免只有一名管理员的仓库死锁；由管理员执行合并就是人工接受步骤。
 
-使用 `GITHUB_TOKEN` 创建的 PR 会进入 GitHub 要求批准后才运行工作流的状态。管理员启动检查、评审结果并执行合并；自动化永不批准自己的提案。这延伸了仓库现有的[依赖更新策略](2026-07-27-dependabot-version-updates.md)，后者同样把自动提案与维护者接受分开。
+使用 `GITHUB_TOKEN` 创建的 PR 会进入 GitHub 要求批准后才运行工作流的状态。管理员评审结果并执行合并，并可通过 GitHub API 或 Actions UI 派发 CI；自动化永不批准自己的提案。这延伸了仓库现有的[依赖更新策略](2026-07-27-dependabot-version-updates.zh.md)，后者同样把自动提案与维护者接受分开。
 
 ## Verification
 
-聚焦工作流测试解析触发器、并发键、精确权限、已有 PR 路径、draft 创建路径、完整 GitHub CLI 动词集合以及不存在直接 Git 调用。仓库文档检查验证这对决策记录及其链接。对仓库设置的实时读取会验证管理员强制执行、必需状态上下文、禁止删除与强制推送、Actions 默认只读权限以及允许创建 PR 的开关。
+聚焦工作流测试解析触发器、并发键、精确权限、已有 PR 路径、draft 创建路径、完整 GitHub CLI 动词集合以及不存在直接 Git 调用。仓库文档检查验证这对决策记录及其链接。对仓库设置的实时读取会验证管理员强制执行、不存在必需的 Actions 状态检查、禁止删除与强制推送、Actions 默认只读权限以及允许创建 PR 的开关。
 
 ## Alternatives considered
 
@@ -32,8 +32,8 @@ Status: implemented
 
 **使用专用 GitHub App installation token。** 这可以把提案创建与 GitHub Actions 的“创建或批准”组合开关分开，也能在无需人工批准的情况下启动 PR 工作流，但会新增 App 私钥与安装生命周期。对于当前自动化规模，短期仓库 token 加管理员启动检查所需的凭据系统更小。
 
-**由托管自动化改写提案分支。** 本机制拒绝该方案。现有自动化已经拥有自己的检出目录与分支写权限；托管任务只创建缺失的 PR metadata。这保留了[自动配对合并](2026-08-08-automatic-translation-pairing-merges.md)不由托管端改写分支的决策。
+**由托管自动化改写提案分支。** 本机制拒绝该方案。现有自动化已经拥有自己的检出目录与分支写权限；托管任务只创建缺失的 PR metadata。这保留了[自动配对合并](2026-08-08-automatic-translation-pairing-merges.zh.md)不由托管端改写分支的决策。
 
 ## Consequences
 
-持续自动化会把 commit 累积到一个可评审的 draft 中，而不是改变 `main`。管理员对新提案执行两个明确动作——启动工作流，并在取得必需证据后合并——因此刻意不提供无人值守的接受路径。`codex/automation/**` 以外的分支沿用现有手动 PR 流程。仓库级“创建或批准”开关比本工作流的行为更宽，因此工作流权限测试与默认只读 token 仍是必需控制。
+持续自动化会把 commit 累积到一个可评审的 draft 中，而不是改变 `main`。管理员对新提案执行两个明确动作——评审并合并——因此刻意不提供无人值守的接受路径。`codex/automation/**` 以外的分支沿用现有手动 PR 流程。仓库级“创建或批准”开关比本工作流的行为更宽，因此工作流权限测试与默认只读 token 仍是必需控制。

@@ -1,7 +1,7 @@
 name: CI
 
 on:
-  pull_request:
+  workflow_dispatch:
 permissions:
   contents: read
 
@@ -11,7 +11,7 @@ env:
   # into apps/cli/cordis.yml (AppCLIEntry disables the row when set).
   DSH_TELEMETRY_DISABLED: '1'
 
-# Cancel a superseded pull-request run on a new push so a fresh head does not
+# Cancel a superseded dispatch so a second manual run of the same ref does not
 # queue a second full 9-job run behind a stale one (paid enterprise runners
 # would otherwise stack with no auto-cancellation).
 concurrency:
@@ -37,7 +37,7 @@ jobs:
   # switch is the separate DSH_CI_FAILOVER_WINDOWS variable on the windows-native
   # job below.
   node-24:
-    if: github.event_name == 'pull_request'
+    if: github.event_name == 'workflow_dispatch'
     runs-on: >-
       ${{ vars.DSH_CI_FAILOVER_LINUX == 'selfhosted'
           && github.event.pull_request.user.login != 'dependabot[bot]'
@@ -85,11 +85,11 @@ jobs:
 
       - name: Run static gates
         env:
-          DSH_ARCHIVE_BASE_REF: ${{ github.event.pull_request.base.sha }}
+          DSH_ARCHIVE_BASE_REF: ${{ github.event.pull_request.base.sha || format('origin/{0}', github.event.repository.default_branch) }}
         run: pnpm run check:ci:static
 
   node-24-coverage:
-    if: github.event_name == 'pull_request'
+    if: github.event_name == 'workflow_dispatch'
     runs-on: >-
       ${{ vars.DSH_CI_FAILOVER_LINUX == 'selfhosted'
           && github.event.pull_request.user.login != 'dependabot[bot]'
@@ -151,7 +151,7 @@ jobs:
         run: pnpm run check:ci:coverage
 
   node-24-consumers:
-    if: github.event_name == 'pull_request'
+    if: github.event_name == 'workflow_dispatch'
     runs-on: >-
       ${{ vars.DSH_CI_FAILOVER_LINUX == 'selfhosted'
           && github.event.pull_request.user.login != 'dependabot[bot]'
@@ -237,7 +237,7 @@ jobs:
 
 
   node-compat:
-    if: github.event_name == 'pull_request'
+    if: github.event_name == 'workflow_dispatch'
     # Each compatibility contract receives an independent standard hosted job.
     runs-on: ${{ matrix.runner }}
     name: ${{ matrix.name }}
@@ -277,7 +277,7 @@ jobs:
         run: pnpm run check:node-compat
 
   python-sdk:
-    if: github.event_name == 'pull_request'
+    if: github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     name: python 3.10 / keyless SDK
     steps:
@@ -299,7 +299,7 @@ jobs:
   # The reusable builder owns the executable, snapshot, wheel, clean-install,
   # GLIBC, and manylinux checks; release validation retains all native targets.
   python-runtime:
-    if: github.event_name == 'pull_request'
+    if: github.event_name == 'workflow_dispatch'
     name: python runtime / release-shaped Linux x64
     uses: ./.github/workflows/build-exe-for-python-sdk.yml
     with:
@@ -317,7 +317,7 @@ jobs:
   # Current topology and fidelity limits live in
   # .agents/notes/implemented/process/2026-08-08-native-windows-pull-request-ci.md
   windows:
-    if: github.event_name == 'pull_request'
+    if: github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     name: windows node 24 / wine blocking
     timeout-minutes: 15
@@ -407,7 +407,7 @@ jobs:
   # DSH_CI_FAILOVER_LINUX variable that retargets the three required Linux jobs
   # and the all-checks-passed verdict above.
   windows-native:
-    if: github.event_name == 'pull_request'
+    if: github.event_name == 'workflow_dispatch'
     runs-on: >-
       ${{ vars.DSH_CI_FAILOVER_WINDOWS == 'selfhosted'
           && github.event.pull_request.user.login != 'dependabot[bot]'
@@ -479,7 +479,7 @@ jobs:
           && fromJSON('["self-hosted", "linux", "x64", "vm-backup"]')
           || 'ubuntu-latest' }}
     needs: [node-24, node-24-coverage, node-24-consumers, node-compat, python-sdk, python-runtime, windows]
-    if: always() && github.event_name == 'pull_request'
+    if: always() && github.event_name == 'workflow_dispatch'
     steps:
       - name: Fail if any needed job did not succeed
         if: contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled') || contains(needs.*.result, 'skipped')

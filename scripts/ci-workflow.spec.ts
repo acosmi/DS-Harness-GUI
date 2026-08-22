@@ -70,7 +70,7 @@ describe('CI workflow', () => {
     // Required PR job: Wine on ubuntu-latest, runs wine-windows-gates.sh.
     expect(windows['runs-on']).toBe('ubuntu-latest')
     expect(windows.name).toBe('windows node 24 / wine blocking')
-    expect(windows.if).toBe("github.event_name == 'pull_request'")
+    expect(windows.if).toBe("github.event_name == 'workflow_dispatch'")
     expect(commandSteps.some(step => step.run.includes('wine-windows-gates.sh'))).toBe(true)
 
     // windows-native: non-blocking native job with failover, runs windows-complete.
@@ -82,7 +82,7 @@ describe('CI workflow', () => {
     expect(windowsNative['runs-on']).toContain('dsh-win-ci')
     expect(windowsNative['runs-on']).toContain('dsh-windows-2025-16core')
     expect(windowsNative.name).toBe('windows node 24 / native complete')
-    expect(windowsNative.if).toBe("github.event_name == 'pull_request'")
+    expect(windowsNative.if).toBe("github.event_name == 'workflow_dispatch'")
     expect(windowsNative.env).toMatchObject({
       DSH_COVERAGE_TEST_TIMEOUT_MS: '30000',
     })
@@ -139,22 +139,22 @@ describe('CI workflow', () => {
     // larger runners for 15 minutes in this same group on master.
     expect(workflow.concurrency['cancel-in-progress']).toBe("${{ github.event_name != 'push' }}")
 
-    // The PR-only ci.yml still cancels a superseded run on a new push, so a
-    // fresh head does not stack a second full 9-job run behind a stale one.
-    // Unlike ci-master it has no push carve-out: every PR event supersedes.
+    // The dispatch-only ci.yml still cancels a superseded run, so a second
+    // manual run of the same ref does not stack a second full 9-job run.
+    // Unlike ci-master it has no push carve-out: every dispatch supersedes.
     expect(prWorkflow.concurrency).toMatchObject({
       'cancel-in-progress': true,
     })
 
     // The exact event sets are what keep master-only jobs out of the PR check
     // panel: ci-master triggers only on push(master) + workflow_dispatch and
-    // never on pull_request; ci.yml is exactly pull_request-only. Assert the
+    // never on pull_request; ci.yml is exactly workflow_dispatch-only. Assert the
     // full sets so losing the wrong event, or gaining an extra one, fails.
     if (!isRecord(workflow.on) || !isRecord(prWorkflow.on)) {
       throw new TypeError('both CI workflows must define on')
     }
     expect(Object.keys(workflow.on).sort()).toEqual(['push', 'workflow_dispatch'])
-    expect(Object.keys(prWorkflow.on)).toEqual(['pull_request'])
+    expect(Object.keys(prWorkflow.on)).toEqual(['workflow_dispatch'])
 
     // Neither drill may carry a job-level group: it would not exempt the job
     // from run-scoped cancellation.
@@ -207,7 +207,7 @@ describe('CI workflow', () => {
     expect(config).not.toContain('packages/lsp/lsp-stdio/src/instance.ts')
   })
 
-  it('requires one release-shaped Python runtime target on every pull request', () => {
+  it('requires one release-shaped Python runtime target on every dispatched CI run', () => {
     const workflow = loadWorkflow('.github/workflows/ci.yml')
     const pythonRuntime = workflowJob(workflow, 'python-runtime')
     const aggregate = workflowJob(workflow, 'all-checks-passed')
@@ -216,7 +216,7 @@ describe('CI workflow', () => {
     }
 
     expect(pythonRuntime).toMatchObject({
-      if: "github.event_name == 'pull_request'",
+      if: "github.event_name == 'workflow_dispatch'",
       name: 'python runtime / release-shaped Linux x64',
       uses: './.github/workflows/build-exe-for-python-sdk.yml',
       with: {
@@ -225,6 +225,23 @@ describe('CI workflow', () => {
       },
     })
     expect(aggregate.needs).toContain('python-runtime')
+  })
+
+  it('does not start minute-spending DSH-GUI workflows from pull_request', () => {
+    const files = [
+      'ci.yml',
+      'e2e.yml',
+      'landlock-run.yml',
+      'expected-filenames.yml',
+      'release.yml',
+      'release-vendor.yml',
+      'python-release.yml',
+      'build-exe-for-python-sdk.yml',
+    ]
+    for (const file of files) {
+      const workflow = loadWorkflow(`.github/workflows/${file}`)
+      expect(workflow.on, file).not.toHaveProperty('pull_request')
+    }
   })
 
   it('keeps every Vitest project process-isolated on native Windows', () => {
@@ -280,7 +297,6 @@ describe('Python release workflows', () => {
   it('keeps complete wheel validation separate from protected public publication', () => {
     const workflow = loadWorkflow('.github/workflows/python-release.yml')
     const dispatch = workflowEvent(workflow, 'workflow_dispatch')
-    const pullRequest = workflowEvent(workflow, 'pull_request')
     const build = workflowJob(workflow, 'build')
     const pythonCompat = workflowJob(workflow, 'python-compat')
     const validate = workflowJob(workflow, 'validate')
@@ -296,9 +312,9 @@ describe('Python release workflows', () => {
     }
 
     expect(dispatch.inputs.publish).toMatchObject({ type: 'boolean', default: false })
-    expect(pullRequest).toEqual({ types: ['labeled'] })
+    expect(workflow.on).not.toHaveProperty('pull_request')
     expect(build).toMatchObject({
-      if: "github.event_name == 'workflow_dispatch' || github.event.label.name == 'python-release-dry-run'",
+      if: "github.event_name == 'workflow_dispatch'",
       uses: './.github/workflows/build-exe-for-python-sdk.yml',
       with: {
         targets: 'node24-linux-x64,node24-linux-arm64,node24-macos-arm64',
@@ -459,8 +475,9 @@ describe('Issue lifecycle workflow', () => {
 })
 
 describe('npm release workflows', () => {
-  it('keeps publication dispatch-only and pack in the PR workflow', () => {
-    // pack stays in the PR/master release workflows so a PR proves the set packs.
+  it('keeps publication dispatch-only and pack off pull_request', () => {
+    // pack stays in the release workflows so a dispatched or master-push run
+    // proves the set packs.
     for (const file of ['release.yml', 'release-vendor.yml']) {
       const workflow = loadWorkflow(`.github/workflows/${file}`)
       if (!isRecord(workflow.jobs)) throw new TypeError(`${file} must define jobs`)

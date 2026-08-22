@@ -100,6 +100,10 @@
     {
       "path": "workspace-integration",
       "purpose": "Register downstream workspaces, compiler faces, build entries, test discovery and the pinned SDK dependency without changing upstream product behavior."
+    },
+    {
+      "path": ".github/workflows",
+      "purpose": "DSH-GUI does not start pull-request GitHub Actions; maintainers dispatch CI through the GitHub API or Actions UI, and main does not require Actions status checks."
     }
   ],
   "releaseReadiness": {
