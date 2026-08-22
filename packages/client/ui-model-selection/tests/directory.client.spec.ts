@@ -23,4 +23,39 @@ describe('model directory transport failures', () => {
     })
     expect(JSON.stringify(directory.store.getSnapshot())).not.toMatch(/plain-secret|other-secret|private\/workspace/u)
   })
+
+  it('keeps an accepted selection when a catalog reload started afterwards', async () => {
+    const modelsGate = Promise.withResolvers<undefined>()
+    const selectGate = Promise.withResolvers<undefined>()
+    let current = { provider: 'deepseek-official', model: 'deepseek-v4-flash' }
+    const directory = new ModelDirectory({
+      models: async () => {
+        await modelsGate.promise
+        return {
+          result: {
+            ok: true as const,
+            value: { current, routable: true, groups: [], failures: [] },
+          },
+        }
+      },
+      selectModel: async (request) => {
+        await selectGate.promise
+        current = { provider: request.provider, model: request.model }
+        return { result: { ok: true as const, value: { selected: current } } }
+      },
+    }, 'session' as SessionId, () => true)
+
+    const selecting = directory.select({ provider: 'acosmi', model: 'account-model' })
+    const loading = directory.load()
+    modelsGate.resolve()
+    await Promise.resolve()
+    selectGate.resolve()
+    await selecting
+    await loading
+
+    expect(directory.store.getSnapshot().current).toEqual({
+      provider: 'acosmi',
+      model: 'account-model',
+    })
+  })
 })

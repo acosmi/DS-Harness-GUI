@@ -186,7 +186,6 @@
       "@deepseek-ai/dsh-client-ui-renderer/client": ["./packages/client/ui-renderer/src/client"],
       "@deepseek-ai/dsh-client-ui-renderer/invariant": ["./packages/client/ui-renderer/src/invariant.ts"],
       "@deepseek-ai/dsh-client-connection": ["./packages/client/connection/src"],
-      "@deepseek-ai/dsh-client-connection/carrier": ["./packages/client/connection/src/carrier.ts"],
       "@acosmi/dsh-desktop-carrier-electron": ["./downstream/packages/desktop-carrier-electron/src"],
       "@acosmi/dsh-desktop-carrier-electron/client": ["./downstream/packages/desktop-carrier-electron/src/client.ts"],
       "@acosmi/dsh-desktop-carrier-electron/protocol": ["./downstream/packages/desktop-carrier-electron/src/protocol.ts"],

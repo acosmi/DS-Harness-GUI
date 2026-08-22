@@ -76,6 +76,7 @@ export const Config: s<Config> = s.object({
 /** LLM adapter backed by one account service and its authenticated SDK client. */
 export class AcosmiAdapter extends LlmAdapter {
   private accountAbort: AbortController | undefined = new AbortController()
+  private cachedSelectable: readonly ManagedModel[] | undefined
 
   /**
    * @param account - authenticated Acosmi SDK lifecycle owner.
@@ -88,6 +89,16 @@ export class AcosmiAdapter extends LlmAdapter {
     private readonly streamIdleTimeoutMs: number,
   ) {
     super()
+  }
+
+  /**
+   * Replace the advisory catalog used by directory listing and exact-model metadata.
+   * Clearing it forces the next directory read to fetch. Stream dispatch still
+   * validates against a live catalog.
+   * @param models - latest selectable catalog rows, or `undefined` to drop the cache.
+   */
+  replaceCatalog(models: readonly ManagedModel[] | undefined): void {
+    this.cachedSelectable = models === undefined ? undefined : models.filter(isSelectable)
   }
 
   /**
@@ -116,14 +127,8 @@ export class AcosmiAdapter extends LlmAdapter {
 
   override async listModels(provider: string): Promise<readonly LlmModelInfo[]> {
     assertProvider(provider)
-    let catalog: Awaited<ReturnType<AcosmiAccountService['models']>>
-    try {
-      catalog = await this.account.models()
-    } catch {
-      return []
-    }
-    if (catalog.status !== 'ok') return []
-    return catalog.models.filter(isSelectable).map(model => ({
+    const models = await this.directoryModels()
+    return models.map(model => ({
       provider,
       id: model.id,
       name: accountModelName(model.name),
@@ -138,7 +143,8 @@ export class AcosmiAdapter extends LlmAdapter {
     signal?: AbortSignal,
   ): Promise<LlmResolvedModelInfo> {
     assertProvider(provider)
-    const model = await this.resolveSelectableModel(modelId, signal)
+    const cached = this.cachedSelectable?.find(candidate => candidate.id === modelId)
+    const model = cached ?? await this.resolveSelectableModel(modelId, signal)
     const efforts = reasoningEfforts(model)
     return {
       provider,
@@ -237,6 +243,18 @@ export class AcosmiAdapter extends LlmAdapter {
     return model
   }
 
+  private async directoryModels(signal?: AbortSignal): Promise<readonly ManagedModel[]> {
+    if (this.cachedSelectable !== undefined) return this.cachedSelectable
+    let catalog: Awaited<ReturnType<AcosmiAccountService['models']>>
+    try {
+      catalog = await this.account.models(signal)
+    } catch {
+      return []
+    }
+    if (catalog.status !== 'ok') return []
+    return catalog.models.filter(isSelectable)
+  }
+
   private admitRequest(): AcosmiRequestAdmission {
     const session = this.account.sdkSession()
     const routeSignal = this.accountAbort?.signal
@@ -271,10 +289,22 @@ export async function apply(ctx: Context, config: Config): Promise<void> {
   let generation = 0
   let discoveryAbort: AbortController | undefined
   let latestReconciliation: Promise<void> = Promise.resolve()
+  let routeActive = false
 
-  const withdraw = (): void => {
+  const setRouteActive = (active: boolean): void => {
+    if (active) {
+      adapter.setAccountReady(true)
+      if (routeActive) return
+      if (registration === undefined) registration = ctx.llm.registerAdapter([PROVIDER], adapter)
+      else registration.replace([PROVIDER])
+      routeActive = true
+      return
+    }
+    adapter.replaceCatalog(undefined)
     adapter.setAccountReady(false)
+    if (!routeActive) return
     registration?.replace([])
+    routeActive = false
   }
   const confirmModels = async (current: number, abort: AbortController): Promise<void> => {
     let catalog: Awaited<ReturnType<AcosmiAccountService['models']>>
@@ -283,18 +313,20 @@ export async function apply(ctx: Context, config: Config): Promise<void> {
     } catch {
       return
     }
-    if (abort.signal.aborted || current !== generation
-      || catalog.status !== 'ok' || !catalog.models.some(isSelectable)) return
-    adapter.setAccountReady(true)
-    if (registration === undefined) registration = ctx.llm.registerAdapter([PROVIDER], adapter)
-    else registration.replace([PROVIDER])
+    if (abort.signal.aborted || current !== generation) return
+    if (catalog.status !== 'ok' || !catalog.models.some(isSelectable)) {
+      setRouteActive(false)
+      return
+    }
+    adapter.replaceCatalog(catalog.models)
+    setRouteActive(true)
   }
   const reconcile = (snapshot: AcosmiAccountSnapshot): void => {
     const current = ++generation
     discoveryAbort?.abort(new Error('Acosmi account model confirmation was superseded'))
     discoveryAbort = undefined
-    withdraw()
     if (snapshot.status !== 'ready') {
+      setRouteActive(false)
       latestReconciliation = Promise.resolve()
       return
     }
@@ -306,6 +338,7 @@ export async function apply(ctx: Context, config: Config): Promise<void> {
   ctx.effect(() => () => {
     generation++
     discoveryAbort?.abort(new Error('Acosmi provider plugin stopped'))
+    adapter.replaceCatalog(undefined)
     adapter.setAccountReady(false)
   }, 'llm-acosmi.authorization')
   ctx.acosmiAccount.subscribe(ctx, reconcile)

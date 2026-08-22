@@ -8,7 +8,7 @@ Slot registrations pass the account store through `inject.hooks.snapshot`; the U
 
 The numeric comparison is fail closed. The card renders a ratio only when `account-acosmi` supplies a current `quotaMultiplierClaim` derived from a typed subscription plan; otherwise it renders neutral membership copy.
 
-This package also keeps the official DeepSeek API-key route available as the alternate onboarding path and displays the community-distribution disclaimer.
+This package also keeps the official DeepSeek API-key route available as the alternate onboarding path and displays the community-distribution disclaimer. After a successful interactive sign-in, it selects the first advertised Acosmi model only when the official API key is absent and the current session still uses `deepseek-official`. That attempt waits for the Host to publish the account route; a timeout or later session-list update does not overwrite a user selection.
 
 ## Model Experience
 

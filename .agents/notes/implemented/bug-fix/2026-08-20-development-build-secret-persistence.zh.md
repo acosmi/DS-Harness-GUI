@@ -2,7 +2,7 @@
 
 Status: implemented
 
-[英文](2026-08-20-development-build-secret-persistence.md) | 中文
+[English](2026-08-20-development-build-secret-persistence.md) | 中文
 
 ## Problem
 
@@ -10,7 +10,7 @@ Status: implemented
 
 ## Decision
 
-主进程在 Electron app ready 后，根据发布者分类和已观测的 `safeStorage` 事实选择 vault。签名构建要求使用保护 vault：其操作在加密不可用时失败关闭，而不受保护或尚未确定的 Linux 后端会拒绝启动。未签名构建仅在 Electron 报告加密可用时选择该 vault；Linux `basic_text`、`unknown` 或缺失的后端事实会选择进程内存。renderer 直接获得已构造 vault 的 `vault.persistence`，不再根据签名元数据独立重算模式。
+主进程在 Electron app ready 后，根据发布者分类和已观测的 `safeStorage` 事实选择 vault。签名构建要求使用保护 vault，并在构造时的持久化选择中于加密不可用时拒绝启动；不受保护或尚未确定的 Linux 后端也会拒绝启动。未签名构建仅在 Electron 报告加密可用时选择该 vault；Linux `basic_text`、`unknown` 或缺失的后端事实会选择进程内存。renderer 直接获得已构造 vault 的 `vault.persistence`，不再根据签名元数据独立重算模式。
 
 保护 vault 的格式、原子写入路径以及 product、channel、issuer 和 profile 绑定保持不变。因此，具备合格 OS 保护的本地开发构建会重新打开同一份加密账户状态，不会引入明文存储、应用自管加密密钥或兼容格式。
 

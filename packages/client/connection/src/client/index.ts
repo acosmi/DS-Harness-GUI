@@ -85,7 +85,10 @@ interface ClientTransportGlobal {
 export interface ConnectionHandle {
   /** Shared api client (fixture or real, decided at boot from the page URL). */
   readonly api: IApiClient
-  /** Whether the current page authority is loopback; non-browser contexts default to true. */
+  /**
+   * Whether the current page is a local authority. True with no `location`, a
+   * loopback hostname, or the Electron `app:` renderer protocol.
+   */
   readonly isLoopback: boolean
   /** Generation-scoped Host facts, including the account home and native path-open capability. */
   readonly hostDescription: HostDescriptionSource
@@ -129,7 +132,9 @@ export function apply(ctx: Context): void {
   }
   const handle: ConnectionHandle = {
     api,
-    isLoopback: pageLocation === undefined || isLoopbackHostname(pageLocation.hostname),
+    isLoopback: pageLocation === undefined
+      || isLoopbackHostname(pageLocation.hostname)
+      || pageLocation.protocol === 'app:',
     hostDescription: {
       getSnapshot: () => description,
       subscribe: (listener) => {

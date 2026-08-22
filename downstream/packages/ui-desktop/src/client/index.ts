@@ -39,7 +39,6 @@ export function apply(ctx: ClientContext): void {
   const t = ctx.locale.bind(NS)
   const connection = ctx.get('connection') as ConnectionHandle
   const deepSeekAccess = new DeepSeekApiAccessController(connection.api.credentials, {
-    checking: () => t('model.deepseekChecking'),
     missing: () => t('model.deepseekMissing'),
     unavailable: () => t('model.deepseekUnavailable'),
   })
@@ -50,7 +49,7 @@ export function apply(ctx: ClientContext): void {
   ctx.effect(() => {
     const refresh = (): void => { void deepSeekAccess.refresh() }
     const disposers = [
-      ctx.remote.$on('credentials/updated', refresh),
+      ctx.remote.$on('credentials/reference-updated', refresh),
       ctx.on('connection/reset', refresh),
       ctx.on('locale/change', () => { deepSeekAccess.relabel() }),
     ]

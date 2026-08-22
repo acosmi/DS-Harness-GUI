@@ -10,7 +10,7 @@ The desktop runtime used publisher-signing classification as the secret-storage 
 
 ## Decision
 
-The main process chooses the vault after Electron app readiness from publisher classification and observed `safeStorage` facts. Signed builds require the protected vault: its operations fail closed if encryption is unavailable, while an unprotected or unresolved Linux backend rejects startup. Unsigned builds choose it only when Electron reports encryption available; Linux `basic_text`, `unknown`, or missing backend facts select process memory. The renderer receives `vault.persistence` from the constructed vault instead of independently recomputing the mode from signing metadata.
+The main process chooses the vault after Electron app readiness from publisher classification and observed `safeStorage` facts. Signed builds require the protected vault and reject persistence selection at construction when encryption is unavailable; an unprotected or unresolved Linux backend also rejects startup. Unsigned builds choose it only when Electron reports encryption available; Linux `basic_text`, `unknown`, or missing backend facts select process memory. The renderer receives `vault.persistence` from the constructed vault instead of independently recomputing the mode from signing metadata.
 
 The protected vault format, atomic write path, and product, channel, issuer, and profile bindings remain unchanged. A local development build with qualifying OS protection therefore reopens the same encrypted account state without introducing plaintext storage, an application-managed encryption key, or a compatibility format.
 

@@ -6,4 +6,6 @@ Desktop product UI contributions. One product-owned whale/browser source asset f
 
 The package also provides the desktop-only About and update settings surface. It displays client-safe build provenance and delegates update checks to the versioned preload bridge.
 
+The official DeepSeek API route stays selectable until its credential status is known. Only a confirmed missing or unreadable API key blocks that group; an in-flight status read does not disable the composer or discard a click.
+
 The renderer emits the source asset `assets/branding/dsh-gui-whale-browser-logo-v6.png` at the same-origin path `branding/dsh-gui-whale-browser-logo-v6.png`, records it in the integrity manifest, and makes every product mark reference that one path. The image is decorative (`alt=""`, `aria-hidden`) and cannot navigate or inject markup.

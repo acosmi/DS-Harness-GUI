@@ -10,7 +10,7 @@ import { Context } from '@deepseek-ai/cordis'
 import { afterEach, describe, expect, it } from 'vitest'
 import { renderIndexInjections, type WebServer, type WebRoute } from '@deepseek-ai/dsh-host-webserver'
 import * as modulesClient from '../src/client/index.ts'
-import { ClientModuleRegistry, bootInjections, orderByModuleGraph } from '../src/index.ts'
+import { ClientModuleRegistry, bootInjections, clientBootAssets, orderByModuleGraph } from '../src/index.ts'
 import type { ClientModuleLoaderTarget, WebBootEntry, WebBootGraph } from '../src/client/index.ts'
 
 const MODULES_ID = '@deepseek-ai/dsh-client-modules'
@@ -104,6 +104,13 @@ const bootGraph = (): WebBootGraph => ({
 })
 
 describe('HTML bootstrap facade', () => {
+  it('exposes parser-stage boot assets from the same injections the HTTP shell renders', () => {
+    const graph = bootGraph()
+    const assets = clientBootAssets(graph)
+    expect(assets.facadeSource).toContain('window.__ModuleLoader__=')
+    expect(assets.parserPreloads.map(entry => entry.id)).toEqual([MODULES_ID, RUNTIME_ID])
+    expect(bootInjections(graph).find(row => row.kind === 'script')).toMatchObject({ text: assets.facadeSource })
+  })
   it('precedes blocking preloads and the boot graph, then becomes the live registration target', async () => {
     const graph = bootGraph()
     const { html, target } = injectedFacade(graph)

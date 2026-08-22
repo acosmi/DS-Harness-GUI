@@ -1,8 +1,8 @@
 /** Current renderer-to-main desktop carrier protocol. */
 export const DESKTOP_PROTOCOL_VERSION = 1 as const
 
-/** Maximum JSON request or response body accepted by the IPC carrier. */
-export const MAX_DESKTOP_BODY_BYTES = 160 * 1024 * 1024
+/** Maximum JSON request or response body accepted by the IPC carrier. Matches the upstream `/api` default so a legal 200 MiB image batch still fits after base64 expansion. */
+export const MAX_DESKTOP_BODY_BYTES = 300 * 1024 * 1024
 
 /** Maximum renderer operations awaiting a utility-process reply. */
 export const MAX_DESKTOP_PENDING_CALLS = 256
@@ -70,7 +70,7 @@ export interface DesktopProductInfo {
   readonly electronVersion: string
   readonly signing: 'development-unsigned' | 'signed'
   readonly secretStorage: 'os-protected' | 'session-memory'
-  readonly updateMode: 'disabled' | 'manual' | 'automatic'
+  readonly updateMode: 'disabled' | 'manual'
   readonly disclaimer: string
 }
 

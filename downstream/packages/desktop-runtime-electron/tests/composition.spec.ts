@@ -59,7 +59,7 @@ describe('desktop Harness composition', () => {
           tokenKey,
           loginEnabled: true,
           gatewayBaseUrl: 'https://acosmi.com',
-          oauthAppName: 'DSH-GUI',
+          oauthAppName: channel === 'stable' ? 'DSH-GUI' : 'DSH-GUI Canary',
           loginTimeoutMs: 180_000,
           logoutTimeoutMs: 10_000,
           refreshIntervalMs: 300_000,
@@ -80,6 +80,11 @@ describe('desktop Harness composition', () => {
         models: [
           { id: 'deepseek-v4-flash', name: 'DeepSeek API · DeepSeek-V4-Flash' },
           { id: 'deepseek-v4-pro', name: 'DeepSeek API · DeepSeek-V4-Pro' },
+          {
+            id: 'deepseek-v4-flash-vision-exp',
+            name: 'DeepSeek API · DeepSeek-V4-Flash-Vision-Exp',
+            inputModalities: ['text', 'image'],
+          },
         ],
       },
     })

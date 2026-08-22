@@ -2,7 +2,7 @@ import type { ManagedModel } from '@acosmi/sdk-ts'
 import type { AcosmiAccountService, AcosmiAccountSnapshot } from '@acosmi/dsh-account-acosmi'
 import { Context } from '@deepseek-ai/cordis'
 import { LlmRuntime } from '@deepseek-ai/dsh-llm'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { apply } from '../src/index.ts'
 
 function snapshot(status: AcosmiAccountSnapshot['status']): AcosmiAccountSnapshot {
@@ -56,6 +56,42 @@ describe('Acosmi provider route lifecycle', () => {
     await applying
 
     expect(context.llm.listProviders()).toEqual([])
+    await context.fiber.dispose()
+  })
+
+  it('keeps a published route across later ready snapshots', async () => {
+    const context = new Context()
+    await context.plugin(LlmRuntime)
+    const topology: number[] = []
+    context.on('llm/adapters-updated', () => {
+      topology.push(context.llm.listProviders().length)
+    })
+    const listeners = new Set<(value: AcosmiAccountSnapshot) => void>()
+    let catalogReads = 0
+    const account = {
+      models: async () => {
+        catalogReads += 1
+        return { status: 'ok' as const, models: [selectableModel()] }
+      },
+      subscribe(owner: Context, listener: (value: AcosmiAccountSnapshot) => void) {
+        return owner.effect(function* () {
+          listeners.add(listener)
+          listener(snapshot('ready'))
+          yield () => { listeners.delete(listener) }
+        }, 'test.acosmi-account-subscription')
+      },
+    } as unknown as AcosmiAccountService
+    context.provide('acosmiAccount', account)
+
+    await apply(context, { maxTokens: 8192, streamIdleTimeoutMs: 120_000 })
+    expect(context.llm.listProviders().map(provider => provider.id)).toEqual(['acosmi'])
+    expect(topology).toEqual([1])
+    expect(catalogReads).toBe(1)
+
+    for (const listener of listeners) listener(snapshot('ready'))
+    await vi.waitFor(() => { expect(catalogReads).toBe(2) })
+    expect(context.llm.listProviders().map(provider => provider.id)).toEqual(['acosmi'])
+    expect(topology).toEqual([1])
     await context.fiber.dispose()
   })
 })

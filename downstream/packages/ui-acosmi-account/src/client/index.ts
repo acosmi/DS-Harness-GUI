@@ -1,11 +1,11 @@
 /** Acosmi account settings and onboarding client plugin. */
 
-import type { ConnectionHandle, ModelSelection, SessionId } from '@deepseek-ai/dsh-api-remotes/client'
+import type { ConnectionHandle, ModelSelection, SessionId, SessionModels } from '@deepseek-ai/dsh-api-remotes/client'
 import type { ClientContext } from '@deepseek-ai/dsh-client-runtime/client'
 import type {} from '@deepseek-ai/dsh-client-ui-settings/client'
 import type {} from '@deepseek-ai/dsh-client-locale/client'
 import type {} from '@deepseek-ai/dsh-api-remotes/client'
-import type {} from '@deepseek-ai/dsh-client-ui-model-selection/client'
+import type { ModelDirectoryState } from '@deepseek-ai/dsh-client-ui-model-selection/client'
 import type {} from '@acosmi/dsh-api-remotes-acosmi/client'
 import { AccountOnboarding } from './AccountOnboarding.tsx'
 import type { AccountOnboardingInjected } from './AccountOnboarding.tsx'
@@ -28,6 +28,9 @@ export const inject = [
   'slots', 'locale', 'remote', 'remote.acosmiAccount', 'connection', 'sessions', 'modelDirectories',
 ]
 
+/** Upper bound for waiting for the Host to publish the Acosmi route after sign-in. */
+const ACCOUNT_ROUTE_SELECT_TIMEOUT_MS = 8_000
+
 /** Register the shared account controller into Settings and onboarding slots. */
 export function apply(ctx: ClientContext): void {
   ctx.effect(() => ctx.locale.register(NS, { zh, en }), 'ui-acosmi-account: dictionaries')
@@ -39,9 +42,10 @@ export function apply(ctx: ClientContext): void {
     if (selecting !== undefined) return selecting
     const sessionId = ctx.sessions.list.getSnapshot().current
     if (sessionId === undefined) return Promise.resolve()
-    const operation = selectAccountRoute(ctx, api, sessionId).then((settled) => {
-      if (settled) preferAccountRoute = false
-    }).finally(() => {
+    const operation = selectAccountRoute(ctx, api, sessionId).then(
+      () => { preferAccountRoute = false },
+      () => { preferAccountRoute = false },
+    ).finally(() => {
       if (selecting === operation) selecting = undefined
     })
     selecting = operation
@@ -104,12 +108,19 @@ async function selectAccountRoute(
   if (credential.result.value.credentials.DEEPSEEK_API_KEY?.configured === true) return true
 
   const directory = ctx.modelDirectories.directoryFor(sessionId)
-  const catalog = await directory.load()
+  let catalog = await directory.load()
+  if (catalog.current.provider === 'acosmi') return true
+  if (catalog.current.provider !== 'deepseek-official') return true
+  if (!hasSelectableAccountModel(catalog)) {
+    catalog = await waitForAccountCatalog(directory, ACCOUNT_ROUTE_SELECT_TIMEOUT_MS)
+  }
+  if (catalog.current.provider === 'acosmi') return true
   if (catalog.current.provider !== 'deepseek-official') return true
   const group = catalog.groups.find(candidate => candidate.id === 'acosmi')
-  if (group === undefined) throw new Error('the signed-in account has no selectable Acosmi model')
-  const model = group.models[0]
-  if (model === undefined) throw new Error('the signed-in account has no selectable Acosmi model')
+  const model = group?.models[0]
+  if (group === undefined || model === undefined) {
+    throw new Error('the signed-in account has no selectable Acosmi model')
+  }
   const selection: ModelSelection = {
     provider: group.id,
     model: model.id,
@@ -119,6 +130,45 @@ async function selectAccountRoute(
   }
   await directory.select(selection)
   return true
+}
+
+function hasSelectableAccountModel(catalog: { groups: readonly { id: string; models: readonly unknown[] }[] }): boolean {
+  return catalog.groups.some(group => group.id === 'acosmi' && group.models.length > 0)
+}
+
+async function waitForAccountCatalog(
+  directory: { load: () => Promise<SessionModels>; store: { subscribe: (listener: () => void) => () => void; getSnapshot: () => ModelDirectoryState } },
+  timeoutMs: number,
+): Promise<SessionModels> {
+  const snapshot = directory.store.getSnapshot()
+  if (snapshot.current !== null && snapshot.routable !== null && hasSelectableAccountModel(snapshot)) {
+    return sessionModelsOf(snapshot)
+  }
+  return await new Promise((resolve, reject) => {
+    const timer = setTimeout(() => {
+      stop()
+      reject(new Error('the signed-in account has no selectable Acosmi model'))
+    }, timeoutMs)
+    const stop = directory.store.subscribe(() => {
+      const next = directory.store.getSnapshot()
+      if (next.current === null || next.routable === null || !hasSelectableAccountModel(next)) return
+      clearTimeout(timer)
+      stop()
+      resolve(sessionModelsOf(next))
+    })
+  })
+}
+
+function sessionModelsOf(state: ModelDirectoryState): SessionModels {
+  if (state.current === null || state.routable === null) {
+    throw new Error('the signed-in account has no selectable Acosmi model')
+  }
+  return {
+    current: state.current,
+    routable: state.routable,
+    groups: state.groups,
+    failures: state.failures,
+  }
 }
 
 export type { AcosmiAccountKey } from './locales.ts'

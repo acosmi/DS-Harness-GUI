@@ -2,9 +2,15 @@ import { describe, expect, it } from 'vitest'
 import { resolveDesktopSecretPersistence } from '../src/secret-persistence.ts'
 
 describe('desktop secret persistence policy', () => {
-  it('keeps signed builds fail-closed on the protected vault', () => {
-    expect(resolveDesktopSecretPersistence('signed', 'darwin', {
+  it('rejects signed builds at vault construction when operating-system encryption is unavailable', () => {
+    expect(() => resolveDesktopSecretPersistence('signed', 'darwin', {
       encryptionAvailable: false,
+    })).toThrow(/require operating-system encryption/)
+    expect(() => resolveDesktopSecretPersistence('signed', 'win32', {
+      encryptionAvailable: false,
+    })).toThrow(/require operating-system encryption/)
+    expect(resolveDesktopSecretPersistence('signed', 'darwin', {
+      encryptionAvailable: true,
     })).toBe('os-protected')
     for (const linuxBackend of ['basic_text', 'unknown', undefined] as const) {
       expect(() => resolveDesktopSecretPersistence('signed', 'linux', {

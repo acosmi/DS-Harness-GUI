@@ -272,6 +272,32 @@ window.__ModuleLoader__={
   ]
 }
 
+/** Parser-stage assets a Host or packaged shell can place before module-system creation. */
+export interface ClientBootAssets {
+  /** Queue-mode facade source, without a surrounding script element. */
+  readonly facadeSource: string
+  /** Available blocking classic-script rows in modules-then-runtime order. */
+  readonly parserPreloads: readonly WebBootEntry[]
+}
+
+/**
+ * Render the shared parser-stage boot assets for a composed graph.
+ * @param graph - the composed entry graph.
+ * @returns the queue facade source and available blocking preload rows.
+ */
+export function clientBootAssets(graph: WebBootGraph): ClientBootAssets {
+  const queue = bootInjections(graph).find((row): row is Extract<IndexInjection, { kind: 'script' }> => (
+    row.kind === 'script'
+  ))
+  if (queue === undefined) {
+    throw new Error('client-modules: boot injections omitted the registration-queue facade')
+  }
+  const parserPreloads = PARSER_PRELOAD_IDS
+    .map(id => graph.entries.find(entry => entry.id === id))
+    .filter((entry): entry is WebBootEntry => entry !== undefined)
+  return { facadeSource: queue.text, parserPreloads }
+}
+
 /**
  * The web plugin table service: incremental `dsh.client` scan + wire composition
  * + bundle route + index injection rows. Construction runs the activation scan

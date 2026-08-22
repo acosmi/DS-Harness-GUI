@@ -146,7 +146,15 @@ describe('desktop utility broker capacity', () => {
   it('closes the owner and drains privileged operations before successful shutdown', async () => {
     const child = new FakeUtility()
     const operation = Promise.withResolvers<void>()
-    const owner = { destroy: vi.fn(), isDestroyed: () => false }
+    const owner = {
+      destroyed: false,
+      destroy: vi.fn(function (this: { destroyed: boolean }) {
+        this.destroyed = true
+      }),
+      isDestroyed() {
+        return this.destroyed
+      },
+    }
     const get = vi.fn(async () => operation.promise.then(() => undefined))
     const broker = new DesktopUtilityBroker(child as never, {
       ...vault,
@@ -290,5 +298,32 @@ describe('desktop utility broker capacity', () => {
     })
     await new Promise(resolve => setImmediate(resolve))
     expect(child.messages).toEqual([])
+  })
+
+  it('starts shutdown after a Host fatal once ready has settled', async () => {
+    const child = new FakeUtility()
+    const owner = {
+      destroyed: false,
+      destroy: vi.fn(function (this: { destroyed: boolean }) {
+        this.destroyed = true
+      }),
+      isDestroyed() {
+        return this.destroyed
+      },
+    }
+    const onShutdownStart = vi.fn()
+    const broker = new DesktopUtilityBroker(child as never, vault, () => owner as never, onShutdownStart)
+    child.emit('message', { type: 'ready' })
+    await broker.ready()
+
+    child.emit('message', { type: 'fatal' })
+    await vi.waitFor(() => expect(onShutdownStart).toHaveBeenCalledOnce())
+    await vi.waitFor(() => expect(owner.destroy).toHaveBeenCalledOnce())
+    const shutdownMessage = child.messages.find((message): message is { type: string; callId: string } => (
+      typeof message === 'object' && message !== null && (message as { type?: string }).type === 'shutdown'
+    ))
+    expect(shutdownMessage).toMatchObject({ type: 'shutdown' })
+    child.emit('message', { type: 'reply', callId: shutdownMessage!.callId, ok: true, value: undefined })
+    await vi.waitFor(() => expect(child.killCalls).toBe(1))
   })
 })
