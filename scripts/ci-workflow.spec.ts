@@ -237,6 +237,7 @@ describe('CI workflow', () => {
       'release-vendor.yml',
       'python-release.yml',
       'build-exe-for-python-sdk.yml',
+      'desktop-windows-package.yml',
     ]
     for (const file of files) {
       const workflow = loadWorkflow(`.github/workflows/${file}`)
@@ -535,6 +536,54 @@ describe('Documentation site publication', () => {
 
     // The environment owns the deployment tag policy and the required reviewers.
     expect(deploy.environment).toMatchObject({ name: 'github-pages' })
+  })
+})
+
+describe('DSH-GUI Windows installer workflow', () => {
+  it('packages unsigned Windows installers on hosted windows-latest and uploads from Ubuntu', () => {
+    const workflow = loadWorkflow('.github/workflows/desktop-windows-package.yml')
+    const identity = JSON.parse(readFileSync(resolve(root, 'downstream/release/identity.json'), 'utf8')) as {
+      repository: string
+    }
+    const repository = new URL(identity.repository).pathname.replace(/^\//, '').replace(/\.git$/, '')
+    const dispatch = workflowEvent(workflow, 'workflow_dispatch')
+    const pack = workflowJob(workflow, 'package')
+    const publish = workflowJob(workflow, 'publish')
+    if (!isRecord(workflow.on)
+      || !isRecord(workflow.env)
+      || !isRecord(dispatch.inputs)
+      || !isRecord(dispatch.inputs.channel)
+      || !isRecord(dispatch.inputs.publish)
+      || !Array.isArray(pack.steps)
+      || !Array.isArray(publish.steps)) {
+      throw new TypeError('desktop Windows installer workflow must define dispatch inputs and job steps')
+    }
+
+    expect(Object.keys(workflow.on)).toEqual(['workflow_dispatch'])
+    expect(workflow.on).not.toHaveProperty('pull_request')
+    expect(dispatch.inputs.channel).toMatchObject({ default: 'stable' })
+    expect(dispatch.inputs.publish).toMatchObject({ type: 'boolean', default: true })
+    expect(pack).toMatchObject({
+      'runs-on': 'windows-latest',
+      if: `github.event_name == 'workflow_dispatch' && github.repository == '${repository}'`,
+    })
+    expect(JSON.stringify(pack)).not.toContain('dsh-windows-2025-16core')
+    expect(JSON.stringify(pack)).not.toContain('macos-')
+    expect(workflow.env).toMatchObject({
+      DSH_DESKTOP_RELEASE_MODE: 'development',
+      DSH_TELEMETRY_DISABLED: '1',
+    })
+    expect(pack.defaults).toMatchObject({ run: { shell: 'pwsh' } })
+    expect(JSON.stringify(pack.steps)).toContain('pnpm run desktop:package:windows')
+    expect(publish).toMatchObject({
+      'runs-on': 'ubuntu-24.04',
+      needs: 'package',
+      permissions: { contents: 'write' },
+    })
+    expect(publish.if).toContain('inputs.publish')
+    expect(JSON.stringify(publish.steps)).toContain(
+      'node downstream/apps/desktop/scripts/github-release.cjs --platform=win32',
+    )
   })
 })
 

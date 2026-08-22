@@ -2,5 +2,5 @@
 # side as of the last confirmed-consistent state. Both languages carry equal authority;
 # after editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write .agents/notes/implemented/process/2026-08-21-dsh-gui-manual-github-actions.md
-2026-08-21-dsh-gui-manual-github-actions.md: 13549b53d43939562e7a80435c78c3f14782545c
-2026-08-21-dsh-gui-manual-github-actions.zh.md: b8bd16886c8bc905a66590ca2f83e0c3792913cd
+2026-08-21-dsh-gui-manual-github-actions.md: 8b0b71a59b1f594f258858acc144970642a5841d
+2026-08-21-dsh-gui-manual-github-actions.zh.md: 3c8cdecf8a50da0dc4142747472ed55197418b6e

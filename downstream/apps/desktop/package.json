@@ -21,7 +21,8 @@
     "package:mac": "pnpm run build && pnpm run verify:runtime-closure && node scripts/package.cjs --target=darwin-arm64,darwin-x64",
     "package:mac:candidate": "DSH_DESKTOP_RELEASE_MODE=candidate pnpm run package:mac",
     "package:mac:stable": "DSH_DESKTOP_RELEASE_MODE=stable pnpm run package:mac",
-    "package:windows": "pnpm run build && pnpm run verify:runtime-closure && node scripts/package.cjs --target=win32-x64"
+    "package:windows": "pnpm run build && pnpm run verify:runtime-closure && node scripts/package.cjs --target=win32-x64",
+    "publish:github": "node scripts/github-release.cjs"
   },
   "dependencies": {
     "@acosmi/dsh-api-remotes-acosmi": "workspace:^",

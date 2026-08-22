@@ -1,0 +1,104 @@
+# Package the Windows NSIS installer and upload it to the product GitHub Release.
+# macOS arm64 and x64 installers are packaged on a local Mac and uploaded with
+# `pnpm run desktop:publish:mac`. This workflow is the Windows half of that
+# distribution: it stays workflow_dispatch-only so pull requests do not spend
+# GitHub-hosted Windows minutes, and it uses windows-latest instead of the
+# organization 16-core labels this overlay cannot allocate.
+name: DSH-GUI Windows installer
+
+on:
+  workflow_dispatch:
+    inputs:
+      channel:
+        description: Desktop channel whose installer identity and artifact directory this run uses.
+        type: choice
+        options:
+          - stable
+          - canary
+        default: stable
+      publish:
+        description: Upload the NSIS installer to the identity ledger's GitHub Release.
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+
+concurrency:
+  group: desktop-windows-package-${{ github.ref }}-${{ inputs.channel }}
+  cancel-in-progress: true
+
+env:
+  PRIMARY_NODE_VERSION: '24'
+  DSH_TELEMETRY_DISABLED: '1'
+  DSH_DESKTOP_CHANNEL: ${{ inputs.channel }}
+  DSH_DESKTOP_RELEASE_MODE: development
+
+jobs:
+  package:
+    name: package Windows NSIS
+    if: github.event_name == 'workflow_dispatch' && github.repository == 'acosmi/DS-Harness-GUI'
+    runs-on: windows-latest
+    timeout-minutes: 90
+    defaults:
+      run:
+        shell: pwsh
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+
+      - name: Enable Developer Mode (symlink support)
+        shell: pwsh
+        run: >-
+          reg add "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\AppModelUnlock"
+          /t REG_DWORD /f /v "AllowDevelopmentWithoutDevLicense" /d "1"
+
+      - uses: pnpm/action-setup@v4
+        with:
+          dest: ${{ runner.temp }}/setup-pnpm
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: ${{ env.PRIMARY_NODE_VERSION }}
+
+      - name: Install (immutable)
+        run: pnpm install --frozen-lockfile
+
+      - name: Package Windows installer
+        run: pnpm run desktop:package:windows
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dsh-gui-windows-installer
+          path: .artifacts/desktop/${{ inputs.channel }}/*Setup*.exe
+          if-no-files-found: error
+          retention-days: 7
+
+  publish:
+    name: upload GitHub Release
+    if: github.event_name == 'workflow_dispatch' && github.repository == 'acosmi/DS-Harness-GUI' && inputs.publish
+    needs: package
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GITHUB_SHA: ${{ github.sha }}
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: ${{ env.PRIMARY_NODE_VERSION }}
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: dsh-gui-windows-installer
+          path: .artifacts/desktop/${{ inputs.channel }}
+
+      - name: Upload Windows installer
+        run: node downstream/apps/desktop/scripts/github-release.cjs --platform=win32
