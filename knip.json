@@ -53,7 +53,6 @@
         "headless-agent/tests/fixtures/e2b/e2b/bin.ts",
         "acp-agent/tests/snapshots/lsp-definition/workspace/subject.ts",
         "acp-agent/tests/fixtures/child-question-tripwire.ts",
-        "acp-agent/tests/fixtures/acosmi-provider/fake-account.ts",
         "acp-agent/tests/fixtures/parent-sandbox-override.ts",
         "acp-agent/tests/fixtures/partial-landlock-sandbox.ts",
         "acp-agent/tests/fixtures/subagent-durability-failure.ts",
@@ -77,26 +76,8 @@
         "**/*.ts"
       ],
       "ignoreDependencies": [
-        "@acosmi/dsh-llm-acosmi",
-        "@deepseek-ai/.+"
-      ]
-    },
-    "packages/util/home": {
-      "entry": [
-        "tests/**/*.spec.ts"
-      ],
-      "project": [
-        "src/**/*.ts",
-        "tests/**/*.ts"
-      ]
-    },
-    "packages/host/webserver": {
-      "entry": [
-        "tests/**/*.spec.ts"
-      ],
-      "project": [
-        "src/**/*.ts",
-        "tests/**/*.ts"
+        "@deepseek-ai/.+",
+        "@acosmi/dsh-llm-acosmi"
       ]
     },
     "packages/host/directory-picker-auto": {
@@ -125,24 +106,6 @@
       "project": [
         "src/**/*.{ts,tsx}",
         "tests/**/*.{ts,tsx}"
-      ]
-    },
-    "packages/client/web-ui": {
-      "entry": [
-        "tests/**/*.spec.{ts,tsx}"
-      ],
-      "project": [
-        "src/**/*.{ts,tsx}",
-        "tests/**/*.{ts,tsx}"
-      ]
-    },
-    "packages/client/runtime": {
-      "entry": [
-        "tests/**/*.spec.ts"
-      ],
-      "project": [
-        "src/**/*.ts",
-        "tests/**/*.ts"
       ]
     },
     "packages/api/remotes": {
@@ -249,90 +212,6 @@
         "tests/**/*.ts"
       ]
     },
-    "downstream/packages/*": {
-      "entry": [
-        "tests/**/*.spec.{ts,tsx}"
-      ],
-      "project": [
-        "src/**/*.{ts,tsx}",
-        "tests/**/*.{ts,tsx}"
-      ]
-    },
-    "downstream/packages/account-acosmi": {
-      "entry": [
-        "tests/**/*.spec.ts"
-      ],
-      "project": [
-        "src/**/*.ts",
-        "tests/**/*.ts"
-      ],
-      "ignoreDependencies": [
-        "zod"
-      ]
-    },
-    "downstream/packages/api-remotes-acosmi": {
-      "project": [
-        "src/**/*.{ts,tsx}"
-      ]
-    },
-    "downstream/packages/desktop-directory-picker": {
-      "project": [
-        "src/**/*.{ts,tsx}"
-      ]
-    },
-    "downstream/apps/desktop": {
-      "entry": [
-        "src/globals.d.ts",
-        "src/renderer.ts",
-        "electron-builder.config.cjs",
-        "vite.config.ts",
-        "scripts/*.cjs"
-      ],
-      "project": [
-        "src/**/*.{ts,tsx}",
-        "scripts/**/*.cjs",
-        "*.{ts,cjs}"
-      ],
-      "vite": false,
-      "ignoreDependencies": [
-        "@acosmi/.+",
-        "@deepseek-ai/.+",
-        "react",
-        "react-dom",
-        "@types/react",
-        "@types/react-dom"
-      ]
-    },
-    "downstream/bundles/desktop": {
-      "entry": [
-        "src/**/*.ts"
-      ],
-      "project": [
-        "src/**/*.ts"
-      ],
-      "ignoreDependencies": [
-        "@acosmi/.+",
-        "@deepseek-ai/.+"
-      ]
-    },
-    "downstream/release": {
-      "entry": [
-        "tests/**/*.spec.ts"
-      ],
-      "project": [
-        "src/**/*.ts",
-        "tests/**/*.ts"
-      ]
-    },
-    "packages/core/tools": {
-      "entry": [
-        "tests/**/*.spec.ts"
-      ],
-      "project": [
-        "src/**/*.ts",
-        "tests/**/*.ts"
-      ]
-    },
     "packages/typert/generator": {
       "entry": [
         "tests/**/*.spec.ts",
@@ -384,15 +263,6 @@
         "tests/**/*.ts"
       ]
     },
-    "packages/context/tmux-context": {
-      "entry": [
-        "tests/**/*.spec.ts"
-      ],
-      "project": [
-        "src/**/*.ts",
-        "tests/**/*.ts"
-      ]
-    },
     "packages/lsp/lsp-stdio": {
       "entry": [
         "tests/**/*.spec.ts",
@@ -437,24 +307,6 @@
         "src/**/*.ts"
       ]
     },
-    "packages/util/timeout": {
-      "entry": [
-        "tests/**/*.spec.ts"
-      ],
-      "project": [
-        "src/**/*.ts",
-        "tests/**/*.ts"
-      ]
-    },
-    "packages/util/output-retention": {
-      "entry": [
-        "tests/**/*.spec.ts"
-      ],
-      "project": [
-        "src/**/*.ts",
-        "tests/**/*.ts"
-      ]
-    },
     "packages/test-support/acp-snapshot": {
       "entry": [
         "tests/**/*.spec.ts",
@@ -489,24 +341,6 @@
       "entry": [
         "tests/**/*.spec.ts",
         "tests/**/*.e2e.ts"
-      ],
-      "project": [
-        "src/**/*.ts",
-        "tests/**/*.ts"
-      ]
-    },
-    "packages/goal/goal-round-driver": {
-      "entry": [
-        "tests/**/*.spec.ts"
-      ],
-      "project": [
-        "src/**/*.ts",
-        "tests/**/*.ts"
-      ]
-    },
-    "packages/goal/tool-goal": {
-      "entry": [
-        "tests/**/*.spec.ts"
       ],
       "project": [
         "src/**/*.ts",
@@ -597,15 +431,6 @@
       "entry": [
         "tests/**/*.spec.ts",
         "tests/**/*.e2e.ts"
-      ],
-      "project": [
-        "src/**/*.ts",
-        "tests/**/*.ts"
-      ]
-    },
-    "packages/util/home-paths": {
-      "entry": [
-        "tests/**/*.spec.ts"
       ],
       "project": [
         "src/**/*.ts",
@@ -750,15 +575,6 @@
         "tests/**/*.ts"
       ]
     },
-    "packages/fs/tool-fs-search": {
-      "entry": [
-        "tests/**/*.spec.ts"
-      ],
-      "project": [
-        "src/**/*.ts",
-        "tests/**/*.ts"
-      ]
-    },
     "packages/mcp/mcp-client": {
       "entry": [
         "tests/**/*.spec.ts",
@@ -788,15 +604,6 @@
         "src/**/*.ts",
         "src/**/*.tsx",
         "tests/**/*.tsx"
-      ]
-    },
-    "packages/client/ui-settings": {
-      "entry": [
-        "tests/**/*.spec.ts"
-      ],
-      "project": [
-        "src/**/*.ts",
-        "tests/**/*.ts"
       ]
     },
     "apps/web": {
@@ -834,24 +641,6 @@
         "@deepseek-ai/.+"
       ]
     },
-    "packages/client/modules": {
-      "entry": [
-        "tests/**/*.spec.ts"
-      ],
-      "project": [
-        "src/**/*.ts",
-        "tests/**/*.ts"
-      ]
-    },
-    "packages/client/hmr": {
-      "entry": [
-        "tests/**/*.spec.ts"
-      ],
-      "project": [
-        "src/**/*.ts",
-        "tests/**/*.ts"
-      ]
-    },
     "packages/subagent/subagent-dsh-sdk": {
       "entry": [
         "tests/**/*.spec.ts",
@@ -875,6 +664,81 @@
     "packages/bundle/web-app": {
       "ignoreDependencies": [
         "@deepseek-ai/.+"
+      ]
+    },
+    "downstream/packages/*": {
+      "entry": [
+        "tests/**/*.spec.{ts,tsx}"
+      ],
+      "project": [
+        "src/**/*.{ts,tsx}",
+        "tests/**/*.{ts,tsx}"
+      ]
+    },
+    "downstream/packages/account-acosmi": {
+      "entry": [
+        "tests/**/*.spec.ts"
+      ],
+      "project": [
+        "src/**/*.ts",
+        "tests/**/*.ts"
+      ],
+      "ignoreDependencies": [
+        "zod"
+      ]
+    },
+    "downstream/packages/api-remotes-acosmi": {
+      "project": [
+        "src/**/*.{ts,tsx}"
+      ]
+    },
+    "downstream/packages/desktop-directory-picker": {
+      "project": [
+        "src/**/*.{ts,tsx}"
+      ]
+    },
+    "downstream/apps/desktop": {
+      "entry": [
+        "src/globals.d.ts",
+        "src/renderer.ts",
+        "electron-builder.config.cjs",
+        "vite.config.ts",
+        "scripts/*.cjs"
+      ],
+      "project": [
+        "src/**/*.{ts,tsx}",
+        "scripts/**/*.cjs",
+        "*.{ts,cjs}"
+      ],
+      "vite": false,
+      "ignoreDependencies": [
+        "@acosmi/.+",
+        "@deepseek-ai/.+",
+        "react",
+        "react-dom",
+        "@types/react",
+        "@types/react-dom"
+      ]
+    },
+    "downstream/bundles/desktop": {
+      "entry": [
+        "src/**/*.ts"
+      ],
+      "project": [
+        "src/**/*.ts"
+      ],
+      "ignoreDependencies": [
+        "@acosmi/.+",
+        "@deepseek-ai/.+"
+      ]
+    },
+    "downstream/release": {
+      "entry": [
+        "tests/**/*.spec.ts"
+      ],
+      "project": [
+        "src/**/*.ts",
+        "tests/**/*.ts"
       ]
     }
   }

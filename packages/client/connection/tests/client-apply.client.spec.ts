@@ -4,12 +4,7 @@
  */
 import { Context } from '@deepseek-ai/cordis'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import {
-  apply,
-  installConnectionCarrier,
-  type ConnectionCarrier,
-  type ConnectionHandle,
-} from '../src/client/index.ts'
+import { apply, type ConnectionHandle } from '../src/client/index.ts'
 import type { RpcMessage } from '../src/client/api.ts'
 import { RpcId } from '../src/client/api.ts'
 import { FixtureApiClient } from '../src/client/fixture.ts'
@@ -20,7 +15,6 @@ type WebSocketGlobal = { WebSocket?: typeof WebSocket }
 
 const originalWebSocket = globalThis.WebSocket
 const sockets: FakeWebSocket[] = []
-let disposeCarrier: (() => void) | undefined
 
 class FakeWebSocket extends EventTarget {
   static readonly CONNECTING = 0
@@ -54,8 +48,6 @@ class FakeWebSocket extends EventTarget {
 }
 
 afterEach(() => {
-  disposeCarrier?.()
-  disposeCarrier = undefined
   delete (globalThis as Win).location
   sockets.length = 0
   if (originalWebSocket === undefined) delete (globalThis as WebSocketGlobal).WebSocket
@@ -90,49 +82,6 @@ describe('connection client apply', () => {
   it('reports non-loopback page authority through the connection handle', async () => {
     ;(globalThis as Win).location = { hostname: '192.0.2.20', search: '' }
     expect((await mount()).isLoopback).toBe(false)
-  })
-
-  it('uses an installed platform carrier without changing controller ownership', async () => {
-    ;(globalThis as Win).location = { hostname: 'desktop.invalid', search: '' }
-    const fixture = new FixtureApiClient()
-    const carrier: ConnectionCarrier = { api: fixture, rpc: fixture.rpc, isLoopback: true }
-    disposeCarrier = installConnectionCarrier(carrier)
-    expect(() => installConnectionCarrier(carrier)).toThrow(/already installed/)
-
-    const handle = await mount()
-    expect(handle.api).toBe(fixture)
-    expect(handle.rpc).toBe(fixture.rpc)
-    expect(handle.isLoopback).toBe(true)
-
-    disposeCarrier()
-    disposeCarrier = undefined
-    disposeCarrier = installConnectionCarrier(carrier)
-  })
-
-  it('leaves a replacement carrier installed when a stale disposer runs again', async () => {
-    ;(globalThis as Win).location = { hostname: 'desktop.invalid', search: '' }
-    const first = new FixtureApiClient()
-    const staleDispose = installConnectionCarrier({ api: first, rpc: first.rpc, isLoopback: true })
-    staleDispose()
-
-    const replacement = new FixtureApiClient()
-    disposeCarrier = installConnectionCarrier({ api: replacement, rpc: replacement.rpc, isLoopback: false })
-    staleDispose()
-
-    const handle = await mount()
-    expect(handle.api).toBe(replacement)
-    expect(handle.rpc).toBe(replacement.rpc)
-    expect(handle.isLoopback).toBe(false)
-  })
-
-  it('keeps the explicit fixture switch ahead of an installed platform carrier', async () => {
-    ;(globalThis as Win).location = { hostname: 'desktop.invalid', search: '?fixture' }
-    const carrierFixture = new FixtureApiClient()
-    disposeCarrier = installConnectionCarrier({ api: carrierFixture, rpc: carrierFixture.rpc, isLoopback: false })
-    const handle = await mount()
-    expect(handle.api).toBeInstanceOf(FixtureApiClient)
-    expect(handle.api).not.toBe(carrierFixture)
-    expect(handle.isLoopback).toBe(true)
   })
 
   it('start() hands out one loop, rejects a second consumer, and stop() aborts the streams', async () => {

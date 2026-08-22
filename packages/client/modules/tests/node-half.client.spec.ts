@@ -8,14 +8,9 @@ import { pathToFileURL } from 'node:url'
 import { runInNewContext } from 'node:vm'
 import { Context } from '@deepseek-ai/cordis'
 import { afterEach, describe, expect, it } from 'vitest'
-import type { WebServer, WebRoute } from '@deepseek-ai/dsh-host-webserver'
+import { renderIndexInjections, type WebServer, type WebRoute } from '@deepseek-ai/dsh-host-webserver'
 import * as modulesClient from '../src/client/index.ts'
-import {
-  ClientModuleRegistry,
-  clientBootAssets,
-  injectBootManifest,
-  orderByModuleGraph,
-} from '../src/index.ts'
+import { ClientModuleRegistry, bootInjections, orderByModuleGraph } from '../src/index.ts'
 import type { ClientModuleLoaderTarget, WebBootEntry, WebBootGraph } from '../src/client/index.ts'
 
 const MODULES_ID = '@deepseek-ai/dsh-client-modules'
@@ -86,9 +81,12 @@ function construct(packageNames: string[]): ClientModuleRegistry {
   return constructWithRoute(packageNames).service
 }
 
-/** Execute the exact first inline script emitted by the Host HTML transform. */
+/** Execute the exact first inline script emitted by the Host boot rows. */
 function injectedFacade(graph: WebBootGraph): { html: string; target: ClientModuleLoaderTarget } {
-  const html = injectBootManifest('<html><head></head><body><script type="module" src="/index.js"></script></body></html>', graph)
+  const html = renderIndexInjections(
+    '<html><head></head><body><script type="module" src="/index.js"></script></body></html>',
+    bootInjections(graph),
+  )
   const source = /<head><script>([\s\S]*?)<\/script>/.exec(html)?.[1]
   if (source === undefined) throw new Error('missing injected ModuleLoader facade script')
   const window: { __ModuleLoader__?: ClientModuleLoaderTarget } = {}
@@ -106,31 +104,13 @@ const bootGraph = (): WebBootGraph => ({
 })
 
 describe('HTML bootstrap facade', () => {
-  it('shares one facade source and preserves the available parser preloads', () => {
-    const graph = bootGraph()
-    const assets = clientBootAssets(graph)
-    const html = injectBootManifest('<head></head>', graph)
-
-    expect(html).toContain(`<script>${assets.facadeSource}</script>`)
-    expect(assets.parserPreloads.map(entry => entry.id)).toEqual([MODULES_ID, RUNTIME_ID])
-    const partial = clientBootAssets({
-      rev: 'missing-runtime',
-      entries: [{ id: MODULES_ID, url: '/plugins/modules.js?rev=m', rev: 'm' }],
-    })
-    expect(partial.parserPreloads.map(entry => entry.id)).toEqual([MODULES_ID])
-    expect(injectBootManifest('<head></head>', {
-      rev: 'missing-runtime',
-      entries: [{ id: MODULES_ID, url: '/plugins/modules.js?rev=m', rev: 'm' }],
-    })).toContain('<script src="/plugins/modules.js?rev=m"></script>')
-  })
-
   it('precedes blocking preloads and the boot graph, then becomes the live registration target', async () => {
     const graph = bootGraph()
     const { html, target } = injectedFacade(graph)
     const facadeAt = html.indexOf('window.__ModuleLoader__=')
     const modulesAt = html.indexOf('<script src="/plugins/modules.js?rev=m"></script>')
     const runtimeAt = html.indexOf('<script src="/plugins/runtime.js?rev=r"></script>')
-    const graphAt = html.indexOf('window.__DSH_BOOT__ = ')
+    const graphAt = html.indexOf('globalThis["__DSH_BOOT__"] = ')
     const entryAt = html.indexOf('<script type="module" src="/index.js"></script>')
     expect([facadeAt, modulesAt, runtimeAt, graphAt, entryAt]).toEqual([...new Set([
       facadeAt, modulesAt, runtimeAt, graphAt, entryAt,
