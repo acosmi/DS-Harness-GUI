@@ -36,10 +36,10 @@ export function AccountSection({ controller, useSnapshot, t }: AccountSectionPro
     ? state.account.pollAfterMs
     : undefined
   useEffect(() => {
-    if (pollAfterMs === undefined || busy !== null) return
+    if (pollAfterMs === undefined || busy !== null || state.phase === 'loading') return
     const timer = window.setInterval(() => { void controller.load() }, pollAfterMs)
     return () => { window.clearInterval(timer) }
-  }, [busy, controller, pollAfterMs])
+  }, [busy, controller, pollAfterMs, state.phase])
 
   useEffect(() => {
     let active = true
@@ -53,9 +53,14 @@ export function AccountSection({ controller, useSnapshot, t }: AccountSectionPro
   const status = account?.status ?? 'signed-out'
   const claim = account?.quotaMultiplierClaim
   const ratio = claim === undefined ? undefined : `≥${formatNumber(claim.minimum)}×`
+  const actionsLocked = busy !== null || state.phase === 'loading'
 
   return (
-    <section className={css.page} aria-labelledby="acosmi-account-title">
+    <section
+      className={css.page}
+      aria-labelledby="acosmi-account-title"
+      aria-busy={state.phase === 'loading'}
+    >
       <div className={css.heading}>
         <h2 id="acosmi-account-title">{t('title')}</h2>
         <p>{t('subtitle')}</p>
@@ -107,27 +112,32 @@ export function AccountSection({ controller, useSnapshot, t }: AccountSectionPro
         </article>
       </div>
 
+      {state.phase === 'loading' ? <p className={css.muted}>{t('loading')}</p> : null}
       {state.error === null ? null : <div className={css.error} role="alert">{state.error}</div>}
       <div className={css.actions}>
         {status === 'ready' || status === 'degraded' ? (
           <>
-            <Button variant="outline" disabled={busy !== null} onClick={() => { void controller.act('refresh') }}>
+            <Button variant="outline" disabled={actionsLocked} onClick={() => { void controller.act('refresh') }}>
               {busy === 'refresh' ? t('refreshing') : t('refresh')}
             </Button>
-            <Button disabled={busy !== null} onClick={() => { void controller.act('logout') }}>
+            <Button disabled={actionsLocked} onClick={() => { void controller.act('logout') }}>
               {busy === 'logout' ? t('loggingOut') : t('logout')}
             </Button>
           </>
         ) : (
           <Button
             variant="primary"
-            disabled={busy !== null || account?.loginAvailable !== true}
+            disabled={actionsLocked || account?.loginAvailable !== true}
             onClick={() => { void controller.act('login') }}
           >
             {busy === 'login' ? t('loggingIn') : t('login')}
           </Button>
         )}
-        {state.phase === 'error' && <Button onClick={() => { void controller.load() }}>{t('retry')}</Button>}
+        {state.error !== null && (
+          <Button disabled={actionsLocked} onClick={() => { void controller.load() }}>
+            {t('retry')}
+          </Button>
+        )}
       </div>
       <p className={css.disclaimer}>{t('disclaimer')}</p>
     </section>

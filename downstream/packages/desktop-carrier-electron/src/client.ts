@@ -170,14 +170,19 @@ function assertDesktopApiTarget(url: URL): void {
   }
 }
 
+/**
+ * Generic unary RPC admits overlay channels and Typert `/api/<namespace>/<method>`
+ * paths. API Proxy single-segment `/api/<method>` posts and `/api/events.*`
+ * streams stay on ElectronApiClient.
+ */
 function assertDesktopUnaryTarget(url: URL): void {
   if (!isDesktopRendererUrl(url) || url.search !== '' || url.hash !== '') {
     throw new Error('desktop carrier rejected target')
   }
-  if (url.pathname.startsWith('/api/')) {
+  const parts = url.pathname.split('/').filter(Boolean)
+  if (parts[0] === 'api' && parts.length < 3) {
     throw new Error('desktop carrier rejected target')
   }
-  const parts = url.pathname.split('/').filter(Boolean)
   if (parts.length < 2
     || !/^[A-Za-z0-9._~-]+$/.test(parts[0] ?? '')
     || parts.slice(1).some(part => part === '.' || part === '..' || !/^[A-Za-z0-9_$.-]+$/.test(part))) {

@@ -45,11 +45,11 @@ export class AcosmiAccountStore {
 
   /** Load the latest account display projection. */
   async load(): Promise<void> {
+    if (this.store.getSnapshot().phase === 'loading') return
     const generation = ++this.generation
     this.store.set({
       ...this.store.getSnapshot(),
       phase: 'loading',
-      error: null,
     })
     try {
       const result = await this.remote.describe()
@@ -70,7 +70,7 @@ export class AcosmiAccountStore {
   /** Load an unknown Host projection, then refresh provider data when the resulting account is authorized. */
   async resume(): Promise<void> {
     const state = this.store.getSnapshot()
-    if (state.busy !== null) return
+    if (state.busy !== null || state.phase === 'loading') return
     const status = state.account?.status
     if (status === 'ready' || status === 'degraded') {
       await this.act('refresh')
@@ -86,7 +86,8 @@ export class AcosmiAccountStore {
 
   /** Run one generated account action and publish its returned projection. */
   async act(action: AcosmiAccountAction): Promise<void> {
-    if (this.store.getSnapshot().busy !== null) return
+    const state = this.store.getSnapshot()
+    if (state.busy !== null || state.phase === 'loading') return
     const generation = ++this.generation
     let publicError = ACCOUNT_SERVICE_UNAVAILABLE
     this.store.set({ ...this.store.getSnapshot(), busy: action, error: null })

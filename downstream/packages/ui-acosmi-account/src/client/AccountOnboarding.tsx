@@ -34,7 +34,7 @@ export function AccountOnboarding({ complete, controller, useSnapshot, t }: Acco
     if (account?.status === 'ready' || account?.status === 'degraded') complete()
   }, [account?.status, complete])
 
-  if (state.phase === 'idle' || state.phase === 'loading'
+  if (state.phase === 'idle' || (state.phase === 'loading' && state.error === null)
     || account?.status === 'ready' || account?.status === 'degraded') return null
 
   const loginAvailable = account?.loginAvailable === true
@@ -49,15 +49,19 @@ export function AccountOnboarding({ complete, controller, useSnapshot, t }: Acco
         <div className={css.options}>
           <Button
             variant="primary"
-            disabled={!loginAvailable || state.busy !== null}
+            disabled={!loginAvailable || state.busy !== null || state.phase === 'loading'}
             onClick={() => { void controller.act('login') }}
           >
             {state.busy === 'login' ? t('loggingIn') : t('onboardingAcosmi')}
           </Button>
-          <Button variant="outline" disabled={state.busy !== null} onClick={complete}>
+          <Button variant="outline" disabled={state.busy !== null || state.phase === 'loading'} onClick={complete}>
             {t('onboardingDeepSeek')}
           </Button>
-          {state.phase === 'error' && <Button onClick={() => { void controller.load() }}>{t('retry')}</Button>}
+          {state.error !== null && (
+            <Button disabled={state.phase === 'loading' || state.busy !== null} onClick={() => { void controller.load() }}>
+              {t('retry')}
+            </Button>
+          )}
         </div>
         <p className={css.disclaimer}>{t('disclaimer')}</p>
       </section>
