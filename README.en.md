@@ -67,7 +67,10 @@ pnpm run typecheck         # Host-before-Client type checking
 pnpm run lint              # Run repository lint
 pnpm run desktop:verify    # Validate release ledgers and report blockers
 pnpm run desktop:package   # Build an untrusted development installer for this host
+pnpm run desktop:package:mac # Build arm64 and x64 macOS installers on this Mac
 pnpm run desktop:package:mac:candidate # Build signed/notarized arm64 and x64 evidence
+pnpm run desktop:publish:mac # Upload local macOS installers to the GitHub Release
+pnpm run desktop:package:windows # Build the Windows NSIS installer
 pnpm run clean             # Remove reproducible build outputs
 ```
 
