@@ -95,7 +95,7 @@ jobs:
         with:
           node-version: ${{ env.PRIMARY_NODE_VERSION }}
 
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
         with:
           name: dsh-gui-windows-installer
           path: .artifacts/desktop/${{ inputs.channel }}
