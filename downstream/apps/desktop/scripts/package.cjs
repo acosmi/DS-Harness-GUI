@@ -69,14 +69,37 @@ function commandName(name) {
   return process.platform === 'win32' && name === 'pnpm' ? 'pnpm.cmd' : name
 }
 
+/**
+ * Build child_process options for one packaging subprocess.
+ * Windows Node 24 throws synchronous `spawn EINVAL` for `.cmd` shims unless `shell` is set.
+ * @param {string} command - resolved executable or cmd shim.
+ * @param {{ capture?: boolean }} [options] - whether stdout and stderr are captured.
+ * @param {string} [platform] - process platform, overridable in tests.
+ * @param {string} [execPath] - Node executable used for electron-builder.
+ * @returns {import('node:child_process').SpawnOptions} spawn options that do not log secrets.
+ */
+function packageChildOptions(command, options = {}, platform = process.platform, execPath = process.execPath) {
+  const windows = platform === 'win32'
+  return {
+    cwd: repositoryRoot,
+    stdio: options.capture ? (windows ? ['ignore', 'pipe', 'pipe'] : ['inherit', 'pipe', 'pipe']) : 'inherit',
+    env: { ...process.env, CI: 'true' },
+    ...(windows ? { shell: command !== execPath, windowsHide: true } : {}),
+  }
+}
+
 function run(label, command, args, options = {}) {
   console.log(`dsh-gui package: ${label}`)
   return new Promise((resolve, reject) => {
-    const child = spawn(command, args, {
-      cwd: repositoryRoot,
-      stdio: options.capture ? ['inherit', 'pipe', 'pipe'] : 'inherit',
-      env: { ...process.env, CI: 'true' },
-    })
+    let child
+    try {
+      child = spawn(command, args, packageChildOptions(command, options))
+    } catch (error) {
+      reject(new Error(
+        `dsh-gui package: ${label} failed to spawn: ${error instanceof Error ? error.message : String(error)}`,
+      ))
+      return
+    }
     const stdoutChunks = []
     const stderrChunks = []
     let capturedBytes = 0
@@ -209,7 +232,13 @@ async function main() {
   }
 }
 
-main().catch(error => {
-  console.error(error instanceof Error ? error.message : String(error))
-  process.exitCode = 1
-})
+module.exports = {
+  packageChildOptions,
+}
+
+if (require.main === module) {
+  main().catch(error => {
+    console.error(error instanceof Error ? error.message : String(error))
+    process.exitCode = 1
+  })
+}
