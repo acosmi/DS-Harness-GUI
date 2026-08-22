@@ -122,6 +122,27 @@ function normalizeStagedManifestDependencies(staging) {
   return changedManifests
 }
 
+/**
+ * `@electron/asar` `listPackage` joins with `path.sep`, so a Windows listing is
+ * `\dist\main.js` while this audit's required paths and prefix checks are POSIX.
+ * @param {string} entry
+ * @returns {string}
+ */
+function posixAsarEntry(entry) {
+  return entry.replaceAll('\\', '/')
+}
+
+/**
+ * `extractFile` splits the archive path with `path.sep`. A POSIX queue entry
+ * `/node_modules/first/package.json` becomes `node_modules\first\package.json`
+ * on Windows so `dirname` does not treat `node_modules/first` as one segment.
+ * @param {string} posixEntry
+ * @returns {string}
+ */
+function asarExtractName(posixEntry) {
+  return posixEntry.slice(1).replaceAll('/', path.sep)
+}
+
 function resolveAsarManifest(entries, fromManifest, dependency) {
   let directory = path.posix.dirname(fromManifest)
   const segments = packageSegments(dependency)
@@ -165,7 +186,7 @@ function assertNativeRuntime(entries, target) {
 }
 
 function assertAsarRuntimeClosure(asar, archivePath, target) {
-  const entries = new Set(asar.listPackage(archivePath, { isPack: false }))
+  const entries = new Set(asar.listPackage(archivePath, { isPack: false }).map(posixAsarEntry))
   for (const required of REQUIRED_APP_FILES) {
     if (!entries.has(required)) throw new Error(`Packaged desktop app is missing ${required}`)
   }
@@ -176,7 +197,7 @@ function assertAsarRuntimeClosure(asar, archivePath, target) {
     const current = queue[index]
     if (visited.has(current.manifestPath)) continue
     visited.add(current.manifestPath)
-    const manifest = JSON.parse(asar.extractFile(archivePath, current.manifestPath.slice(1)).toString('utf8'))
+    const manifest = JSON.parse(asar.extractFile(archivePath, asarExtractName(current.manifestPath)).toString('utf8'))
     const { required, optional } = dependencySets(manifest)
     for (const dependency of required) {
       if (ELECTRON_PROVIDED_PACKAGES.has(dependency)) continue

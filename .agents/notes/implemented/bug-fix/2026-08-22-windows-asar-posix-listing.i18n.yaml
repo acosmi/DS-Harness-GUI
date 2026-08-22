@@ -1,0 +1,6 @@
+# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
+# side as of the last confirmed-consistent state. Both languages carry equal authority;
+# after editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write .agents/notes/implemented/bug-fix/2026-08-22-windows-asar-posix-listing.md
+2026-08-22-windows-asar-posix-listing.md: b75130595af463ef1697698f6005af0255449a22
+2026-08-22-windows-asar-posix-listing.zh.md: a0b7231c0c5cb887903bab59a05b9f70feb77515
