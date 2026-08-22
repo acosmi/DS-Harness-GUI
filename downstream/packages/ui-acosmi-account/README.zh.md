@@ -8,7 +8,7 @@ slot 注册通过 `inject.hooks.snapshot` 传递账户 store；React 绑定由 U
 
 数字对比采用失败关闭策略。只有 `account-acosmi` 根据类型化订阅计划提供当前 `quotaMultiplierClaim` 时，卡片才显示倍率；其他情况只显示中性会员文案。
 
-该包同时保留官方 DeepSeek API 密钥作为另一条引导路径，并显示社区发行版声明。
+该包同时保留官方 DeepSeek API 密钥作为另一条引导路径，并显示社区发行版声明。交互登录成功后，仅在未配置官方 API Key 且当前会话仍使用 `deepseek-official` 时，才会选择目录中第一个已公布的 Acosmi 模型。该尝试会等待 Host 发布账户路由；超时或之后的会话列表更新不会覆盖用户选择。
 
 ## 模型体验
 

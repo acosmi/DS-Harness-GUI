@@ -1,14 +1,8 @@
 /** Browser-side API Proxy and generic RPC carrier over the isolated preload API. */
 
-import type { ClientConnectionRpc, ConnectionCarrier } from '@deepseek-ai/dsh-client-connection/carrier'
 import { AbstractApiClient } from '@deepseek-ai/dsh-host-apiproxy/client'
-import {
-  RpcId,
-  serverResponseSchema,
-  type ClientRequest,
-  type RpcMessage,
-  type ServerResponse,
-} from '@deepseek-ai/dsh-host-apiproxy/api'
+import type { RpcFetch } from '@deepseek-ai/dsh-client-connection/client'
+import type { RpcMessage } from '@deepseek-ai/dsh-host-apiproxy/api'
 import {
   DESKTOP_PROTOCOL_VERSION,
   DESKTOP_RENDERER_ORIGIN,
@@ -25,6 +19,16 @@ const SECRET_METHODS = new Set([
   'settings.mutate',
 ])
 
+/** Official connection plugin uses this host when `location.origin` is null. */
+const INTERNAL_RPC_ORIGIN = 'http://dsh.internal'
+
+interface DesktopTransportGlobal {
+  __DSH_TRANSPORT__?: {
+    createApiClient(): ElectronApiClient
+    fetch: RpcFetch
+  }
+}
+
 /** API Proxy client whose physical fetch is Electron IPC rather than a network socket. */
 export class ElectronApiClient extends AbstractApiClient {
   protected override resolveBase(): string {
@@ -37,26 +41,9 @@ export class ElectronApiClient extends AbstractApiClient {
   }
 
   protected override async doFetch(input: URL, init?: RequestInit): Promise<Response> {
-    assertDesktopTarget(input)
+    assertDesktopApiTarget(input)
     if (init?.method === undefined || init.method === 'GET') return this.openStream(input, init?.signal ?? undefined)
-    if (init.method !== 'POST' || typeof init.body !== 'string') {
-      throw new Error('desktop carrier accepts JSON POST requests only')
-    }
-    const requestId = crypto.randomUUID()
-    const body = new TextEncoder().encode(init.body)
-    const request: DesktopUnaryRequest = {
-      version: DESKTOP_PROTOCOL_VERSION,
-      requestId,
-      url: input.href,
-      method: 'POST',
-      headers: [...new Headers(init.headers).entries()],
-      body: body.buffer,
-    }
-    const signal = init.signal ?? undefined
-    const abort = (): void => { window.dshDesktop.cancel(requestId) }
-    if (signal?.aborted === true) throw abortReason(signal)
-    const response = await waitForAbort(window.dshDesktop.request(request), signal, abort)
-    return new Response(response.body, { status: response.status, headers: response.headers.map(row => [...row]) })
+    return postDesktopUnary(input, init)
   }
 
   private async openStream(input: URL, signal: AbortSignal | undefined): Promise<Response> {
@@ -104,39 +91,60 @@ export class ElectronApiClient extends AbstractApiClient {
   }
 }
 
-/** Create the injection value consumed by the upstream connection plugin. */
-export function createElectronConnectionCarrier(): ConnectionCarrier {
+/**
+ * Install the official `__DSH_TRANSPORT__` hooks so the upstream connection
+ * plugin uses Electron IPC instead of HTTP and WebSocket.
+ * @returns disposer that removes the hooks.
+ */
+export function installElectronTransport(): () => void {
+  const target = globalThis as DesktopTransportGlobal
+  if (target.__DSH_TRANSPORT__ !== undefined) {
+    throw new Error('desktop transport is already installed')
+  }
   const api = new ElectronApiClient()
-  return { api, rpc: createElectronRpc(), isLoopback: true }
+  target.__DSH_TRANSPORT__ = {
+    createApiClient: () => api,
+    fetch: desktopRpcFetch,
+  }
+  return () => {
+    delete target.__DSH_TRANSPORT__
+  }
 }
 
-function createElectronRpc(): ClientConnectionRpc {
-  return {
-    async call(channel, endpoint, payload, signal) {
-      assertRpcTarget(channel, endpoint)
-      const rpcId = RpcId(crypto.randomUUID())
-      const message: ClientRequest = { type: 'client-request', rpcId, method: endpoint, payload }
-      const requestId = crypto.randomUUID()
-      const encoded = new TextEncoder().encode(JSON.stringify(message))
-      const request: DesktopUnaryRequest = {
-        version: DESKTOP_PROTOCOL_VERSION,
-        requestId,
-        url: `${DESKTOP_RENDERER_ORIGIN}${channel}/${endpoint}`,
-        method: 'POST',
-        headers: [['content-type', 'application/json']],
-        body: encoded.buffer,
-      }
-      const abort = (): void => { window.dshDesktop.cancel(requestId) }
-      if (signal?.aborted === true) throw abortReason(signal)
-      const raw = await waitForAbort(window.dshDesktop.request(request), signal, abort)
-      if (raw.status < 200 || raw.status >= 300) {
-        throw new Error(`desktop RPC transport failure: HTTP ${String(raw.status)}`)
-      }
-      const response = serverResponseSchema.parse(JSON.parse(new TextDecoder().decode(raw.body))) as ServerResponse
-      if (response.rpcId !== rpcId) throw new Error(`desktop RPC correlation mismatch for ${endpoint}`)
-      return response.result
-    },
+/** Unary IPC fetch used as `ClientTransportHooks.fetch` for generic RPC. */
+export async function desktopRpcFetch(input: URL, init?: RequestInit): Promise<Response> {
+  const url = rewriteInternalRpcUrl(input)
+  assertDesktopUnaryTarget(url)
+  return postDesktopUnary(url, init)
+}
+
+function rewriteInternalRpcUrl(input: URL): URL {
+  const internal = new URL(INTERNAL_RPC_ORIGIN)
+  if (input.protocol === internal.protocol && input.hostname === internal.hostname) {
+    return new URL(`${input.pathname}${input.search}`, `${DESKTOP_RENDERER_ORIGIN}/`)
   }
+  return input
+}
+
+async function postDesktopUnary(input: URL, init?: RequestInit): Promise<Response> {
+  if (init?.method !== 'POST' || typeof init.body !== 'string') {
+    throw new Error('desktop carrier accepts JSON POST requests only')
+  }
+  const requestId = crypto.randomUUID()
+  const body = new TextEncoder().encode(init.body)
+  const request: DesktopUnaryRequest = {
+    version: DESKTOP_PROTOCOL_VERSION,
+    requestId,
+    url: input.href,
+    method: 'POST',
+    headers: [...new Headers(init.headers).entries()],
+    body: body.buffer,
+  }
+  const signal = init.signal ?? undefined
+  const abort = (): void => { window.dshDesktop.cancel(requestId) }
+  if (signal?.aborted === true) throw abortReason(signal)
+  const response = await waitForAbort(window.dshDesktop.request(request), signal, abort)
+  return new Response(response.body, { status: response.status, headers: response.headers.map(row => [...row]) })
 }
 
 function consumeStreamItem(item: DesktopStreamItem, controller: ReadableStreamDefaultController<Uint8Array>): boolean {
@@ -155,18 +163,24 @@ function consumeStreamItem(item: DesktopStreamItem, controller: ReadableStreamDe
   }
 }
 
-function assertDesktopTarget(url: URL): void {
+function assertDesktopApiTarget(url: URL): void {
   if (!isDesktopRendererUrl(url) || url.search !== '' || url.hash !== ''
     || !url.pathname.startsWith('/api/')) {
     throw new Error('desktop carrier rejected target')
   }
 }
 
-function assertRpcTarget(channel: string, endpoint: string): void {
-  if (!/^\/[A-Za-z0-9._~-]+$/.test(channel)
-    || endpoint.length === 0
-    || endpoint.split('/').some(segment => segment === '.' || segment === '..'
-      || !/^[A-Za-z0-9_$.-]+$/.test(segment))) {
+function assertDesktopUnaryTarget(url: URL): void {
+  if (!isDesktopRendererUrl(url) || url.search !== '' || url.hash !== '') {
+    throw new Error('desktop carrier rejected target')
+  }
+  if (url.pathname.startsWith('/api/')) {
+    throw new Error('desktop carrier rejected target')
+  }
+  const parts = url.pathname.split('/').filter(Boolean)
+  if (parts.length < 2
+    || !/^[A-Za-z0-9._~-]+$/.test(parts[0] ?? '')
+    || parts.slice(1).some(part => part === '.' || part === '..' || !/^[A-Za-z0-9_$.-]+$/.test(part))) {
     throw new Error('desktop carrier rejected malformed RPC target')
   }
 }

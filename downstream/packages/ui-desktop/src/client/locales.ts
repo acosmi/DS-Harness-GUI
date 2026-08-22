@@ -20,7 +20,6 @@ export const zh = {
   'update.current': '当前已是最新版本。',
   'update.available': '发现新版本 {version}。',
   'update.error': '暂时无法检查更新。',
-  'model.deepseekChecking': '正在检查 DeepSeek API Key 配置…',
   'model.deepseekMissing': 'DeepSeek API 未配置。请到“设置 → 模型”中配置 API Key，或选择已登录账户下的 Acosmi 模型。',
   'model.deepseekUnavailable': '无法确认 DeepSeek API Key 配置。请到“设置 → 模型”检查，或选择 Acosmi 会员模型。',
 } satisfies Record<string, string>
@@ -47,7 +46,6 @@ export const en = {
   'update.current': 'This is the latest version.',
   'update.available': 'Version {version} is available.',
   'update.error': 'Updates cannot be checked right now.',
-  'model.deepseekChecking': 'Checking the DeepSeek API key configuration…',
   'model.deepseekMissing': 'DeepSeek API is not configured. Add its API key in Settings → Models, or choose an Acosmi account model.',
   'model.deepseekUnavailable': 'The DeepSeek API key status is unavailable. Check Settings → Models, or choose an Acosmi account model.',
 } satisfies Record<DesktopUiKey, string>

@@ -6,4 +6,6 @@
 
 本包同时提供桌面专用的“关于”和更新设置界面。它展示可安全进入客户端的构建来源信息，并把更新检查委托给带版本的 preload bridge。
 
+官方 DeepSeek API 路由在凭据状态尚未确认前保持可选。只有确认缺少或无法读取 API Key 时才拦截该分组；进行中的状态读取不会停用 composer，也不会丢掉一次点击。
+
 renderer 会把源资产 `assets/branding/dsh-gui-whale-browser-logo-v6.png` 作为同源路径 `branding/dsh-gui-whale-browser-logo-v6.png` 发出并写入完整性清单，所有产品标记都引用这一个路径。图像仅作装饰（`alt=""`、`aria-hidden`），不能导航或注入标记。

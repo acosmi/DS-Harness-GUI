@@ -1,7 +1,12 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { Context } from '@deepseek-ai/cordis'
+import { apply as applyConnection } from '@deepseek-ai/dsh-client-connection/client'
 import { RpcId, type ClientRequest } from '@deepseek-ai/dsh-host-apiproxy/api'
-import { createElectronConnectionCarrier, ElectronApiClient } from '../src/client.ts'
+import {
+  desktopRpcFetch,
+  ElectronApiClient,
+  installElectronTransport,
+} from '../src/client.ts'
 import { DesktopHostConnection } from '../src/index.ts'
 import { DESKTOP_PROTOCOL_VERSION, type DesktopPreloadBridge, type DesktopUnaryRequest } from '../src/protocol.ts'
 
@@ -33,8 +38,20 @@ class TestElectronApiClient extends ElectronApiClient {
 }
 
 afterEach(() => {
+  delete (globalThis as { __DSH_TRANSPORT__?: unknown }).__DSH_TRANSPORT__
   vi.unstubAllGlobals()
 })
+
+async function mountedDesktopRpc(desktop: DesktopPreloadBridge) {
+  vi.stubGlobal('window', { dshDesktop: desktop })
+  vi.stubGlobal('location', { hostname: 'dsh-gui', protocol: 'app:', search: '', origin: 'null' })
+  installElectronTransport()
+  const ctx = new Context()
+  await ctx.plugin({ apply: applyConnection, inject: [] })
+  const handle = ctx.get('connection')
+  if (handle === undefined) throw new Error('ctx.connection not provided')
+  return handle.rpc
+}
 
 describe('renderer Electron carrier', () => {
   it('carries generic RPC with correlation and rejects malformed targets', async () => {
@@ -46,16 +63,19 @@ describe('renderer Electron carrier', () => {
         result: { ok: true, value: { accepted: message.payload } },
       })
     })
-    vi.stubGlobal('window', { dshDesktop: bridge(requestSpy) })
-    const rpc = createElectronConnectionCarrier().rpc
+    const rpc = await mountedDesktopRpc(bridge(requestSpy))
     await expect(rpc.call('/acosmi', 'account/describe', { value: 1 }))
       .resolves.toEqual({ ok: true, value: { accepted: { value: 1 } } })
     expect(requestSpy).toHaveBeenCalledWith(expect.objectContaining({
       url: 'app://dsh-gui/acosmi/account/describe',
       method: 'POST',
     }))
-    await expect(rpc.call('bad', 'describe', {})).rejects.toThrow(/malformed RPC target/)
-    await expect(rpc.call('/acosmi', '../secret', {})).rejects.toThrow(/malformed RPC target/)
+    await expect(rpc.call('bad', 'describe', {})).rejects.toThrow(/invalid RPC target/)
+    await expect(rpc.call('/acosmi', '../secret', {})).rejects.toThrow(/invalid RPC target/)
+    await expect(desktopRpcFetch(new URL('https://example.test/acosmi/describe'), {
+      method: 'POST',
+      body: '{}',
+    })).rejects.toThrow(/rejected target/)
   })
 
   it('suppresses secret-bearing credential and model-discovery envelopes without changing transport bytes', async () => {
@@ -98,9 +118,9 @@ describe('renderer Electron carrier', () => {
     let settle!: (response: Response) => void
     const pending = new Promise<Response>(resolve => { settle = resolve })
     const desktop = bridge(() => pending)
-    vi.stubGlobal('window', { dshDesktop: desktop })
+    const rpc = await mountedDesktopRpc(desktop)
     const controller = new AbortController()
-    const call = createElectronConnectionCarrier().rpc.call('/acosmi', 'describe', {}, controller.signal)
+    const call = rpc.call('/acosmi', 'describe', {}, controller.signal)
     controller.abort(new Error('stop'))
     await expect(call).rejects.toThrow('stop')
     expect(desktop.cancel).toHaveBeenCalledTimes(1)
@@ -110,13 +130,14 @@ describe('renderer Electron carrier', () => {
       result: { ok: true, value: {} },
     }))
 
-    vi.stubGlobal('window', { dshDesktop: bridge(async () => Response.json({
+    delete (globalThis as { __DSH_TRANSPORT__?: unknown }).__DSH_TRANSPORT__
+    const mismatched = await mountedDesktopRpc(bridge(async () => Response.json({
       type: 'server-response',
       rpcId: RpcId('different-correlation'),
       result: { ok: true, value: {} },
-    })) })
-    await expect(createElectronConnectionCarrier().rpc.call('/acosmi', 'describe', {}))
-      .rejects.toThrow(/correlation mismatch/)
+    })))
+    await expect(mismatched.call('/acosmi', 'describe', {}))
+      .rejects.toThrow(/rpcId mismatch/)
   })
 
   it('detaches the abort listener after a stream ends naturally', async () => {

@@ -8,7 +8,7 @@
   },
   "upstream": {
     "repository": "https://github.com/deepseek-ai/deepseek-harness",
-    "commit": "141eb6fef83422698aef7a981029e843e8161534"
+    "commit": "b150a551b8d465e31e418e1b2eaf5e79bbb7d28e"
   },
   "acosmiSdk": {
     "package": "@acosmi/sdk-ts",
@@ -48,7 +48,7 @@
   },
   "lockfile": {
     "path": "pnpm-lock.yaml",
-    "sha256": "ee79638df718c7555344ed7aac669aa9d2e549fd23eb61fac7c604a40891f4ed"
+    "sha256": "8cf8091692be0fcecfedd03ba4e7f688bae4053445e80db155c6c81999395312"
   },
   "inventories": {
     "identity": "downstream/release/identity.json",
@@ -57,7 +57,7 @@
     "externalInputs": "downstream/release/external-inputs.json",
     "responsibilities": "downstream/release/responsibilities.json"
   },
-  "synchronizedAt": "2026-08-20",
+  "synchronizedAt": "2026-08-21",
   "compatibility": {
     "status": "implementation-in-progress",
     "verifiedAt": null,
@@ -67,11 +67,15 @@
   "genericPatches": [
     {
       "path": "packages/client/connection",
-      "purpose": "Allow a platform bootstrap to inject the API/RPC carrier while retaining the upstream ConnectionController."
+      "purpose": "Treat the Electron app: renderer protocol as loopback so privileged Host methods stay available without a forked carrier."
     },
     {
       "path": "packages/typert/generator",
       "purpose": "Let aggregate compiler faces discover private product packages under the generic downstream package root."
+    },
+    {
+      "path": "packages/client/modules",
+      "purpose": "Export parser-stage boot assets from bootInjections so a packaged renderer can emit the same queue facade as the HTTP shell."
     },
     {
       "path": "packages/client/tsdown.client.ts",
@@ -86,12 +90,20 @@
       "purpose": "Allow product bundles to replace the blank-session hero mark through an optional root-scoped slot while retaining the upstream fish fallback and hero layout."
     },
     {
+      "path": "packages/client/ui-model-selection",
+      "purpose": "Keep an in-flight session.selectModel from being discarded by a concurrent directory reload."
+    },
+    {
       "path": "vendor/loader/src/config/utils.ts",
       "purpose": "Create the JavaScript expression evaluator only when a Node configuration uses an expression so expression-free browser bundles can enforce CSP without unsafe-eval."
     },
     {
       "path": "workspace-integration",
       "purpose": "Register downstream workspaces, compiler faces, build entries, test discovery and the pinned SDK dependency without changing upstream product behavior."
+    },
+    {
+      "path": ".github/workflows",
+      "purpose": "DSH-GUI does not start pull-request GitHub Actions; maintainers dispatch CI through the GitHub API or Actions UI, and main does not require Actions status checks."
     }
   ],
   "releaseReadiness": {

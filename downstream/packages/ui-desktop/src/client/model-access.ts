@@ -5,12 +5,10 @@ import { createSnapshotStore, type SnapshotStore } from '@deepseek-ai/dsh-client
 import type { ModelProviderAccess } from '@deepseek-ai/dsh-client-ui-model-selection/client'
 
 type CredentialReader = Pick<IApiClient['credentials'], 'describe'>
-type BlockReason = 'checking' | 'missing' | 'unavailable'
+type BlockReason = 'missing' | 'unavailable'
 
 /** Localized reason factories read again when the application locale changes. */
 export interface DeepSeekApiAccessCopy {
-  /** @returns copy shown while credential state is loading. */
-  checking(): string
   /** @returns copy shown when no official API key is configured. */
   missing(): string
   /** @returns copy shown when credential state cannot be read. */
@@ -23,7 +21,7 @@ export class DeepSeekApiAccessController {
   readonly store: SnapshotStore<ModelProviderAccess>
 
   private generation = 0
-  private reason: BlockReason = 'checking'
+  private reason: BlockReason = 'missing'
 
   /**
    * @param credentials - credential status reader.
@@ -33,14 +31,12 @@ export class DeepSeekApiAccessController {
     private readonly credentials: CredentialReader,
     private readonly copy: DeepSeekApiAccessCopy,
   ) {
-    this.store = createSnapshotStore({ status: 'blocked', reason: copy.checking() })
+    this.store = createSnapshotStore({ status: 'available' })
   }
 
   /** Refresh whether the official API route has its own API key. */
   async refresh(): Promise<void> {
     const generation = ++this.generation
-    this.reason = 'checking'
-    this.publishBlocked()
     try {
       const response = await this.credentials.describe({ refs: ['DEEPSEEK_API_KEY'] })
       if (generation !== this.generation) return

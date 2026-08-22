@@ -49,16 +49,19 @@ export class DesktopUtilityBroker {
   private readonly exitPromise = new Promise<void>(resolve => { this.exitResolve = resolve })
   private exited = false
   private shutdownTask: Promise<void> | undefined
+  private teardownStarted = false
 
   /**
    * @param child - Electron utility process running the Harness Host.
    * @param vault - channel-specific secret vault selected by the main process.
    * @param owner - current desktop window for native directory dialogs.
+   * @param onShutdownStart - idempotent application teardown (stopping flag and IPC removal) before the window is destroyed.
    */
   constructor(
     private readonly child: UtilityProcess,
     private readonly vault: DesktopSecretVault,
     private readonly owner: () => BrowserWindow | undefined,
+    private readonly onShutdownStart?: () => void,
   ) {
     child.on('message', message => { void this.route(message) })
     child.on('exit', code => {
@@ -69,6 +72,8 @@ export class DesktopUtilityBroker {
       this.readyReject(failure)
       for (const call of this.pending.values()) call.reject(failure)
       this.pending.clear()
+      this.beginTeardown()
+      this.destroyOwnerWindow()
     })
   }
 
@@ -115,20 +120,32 @@ export class DesktopUtilityBroker {
 
   /** Dispose the Host tree within a deadline, terminate it once, and wait for process exit. */
   shutdown(timeoutMs = 5_000): Promise<void> {
+    this.beginTeardown()
     if (this.exited) return Promise.resolve()
     this.shutdownTask ??= this.shutdownInternal(timeoutMs)
     return this.shutdownTask
   }
 
+  private beginTeardown(): void {
+    if (this.teardownStarted) return
+    this.teardownStarted = true
+    this.onShutdownStart?.()
+  }
+
+  private destroyOwnerWindow(): void {
+    const current = this.owner()
+    if (current === undefined || current.isDestroyed()) return
+    try {
+      current.destroy()
+    } catch (_ownerAlreadyDestroyed) {
+      // Electron can throw when destroy races with an in-flight close.
+    }
+  }
+
   private async shutdownInternal(timeoutMs: number): Promise<void> {
     let timer: NodeJS.Timeout | undefined
-    let failure: unknown
-    const current = this.owner()
-    try {
-      if (current !== undefined && !current.isDestroyed()) current.destroy()
-    } catch (error) {
-      failure = error
-    }
+    let failure: unknown = undefined
+    this.destroyOwnerWindow()
     try {
       await Promise.race([
         this.invoke({ type: 'shutdown' }, true)
@@ -209,6 +226,7 @@ export class DesktopUtilityBroker {
     }
     if (message.type === 'fatal') {
       this.readyReject(new Error('desktop Host failed to start'))
+      void this.shutdown().catch((_hostFatalShutdown) => undefined)
       return
     }
     if (message.type === 'reply') {

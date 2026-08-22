@@ -15,7 +15,7 @@ export interface DesktopSafeStorageFacts {
  * @param platform - current Node.js platform.
  * @param storage - Electron safeStorage facts observed after app readiness.
  * @returns the vault persistence mode for this application lifetime.
- * @throws when a signed Linux build cannot identify a protected storage backend.
+ * @throws when a signed build cannot use operating-system encryption, or a signed Linux build cannot identify a protected storage backend.
  */
 export function resolveDesktopSecretPersistence(
   signing: DesktopProductInfo['signing'],
@@ -32,7 +32,9 @@ export function resolveDesktopSecretPersistence(
     }
     return 'session-memory'
   }
-  if (signing === 'signed') return 'os-protected'
+  if (signing === 'signed' && !storage.encryptionAvailable) {
+    throw new Error('signed desktop builds require operating-system encryption')
+  }
   if (!storage.encryptionAvailable) return 'session-memory'
   return 'os-protected'
 }

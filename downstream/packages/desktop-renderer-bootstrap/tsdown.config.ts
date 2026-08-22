@@ -17,7 +17,6 @@ export default defineConfig(({ env }) => {
       clean: false,
       external: [
         '@acosmi/dsh-desktop-carrier-electron/client',
-        '@deepseek-ai/dsh-client-connection/carrier',
         '@deepseek-ai/dsh-client-web',
       ],
     }

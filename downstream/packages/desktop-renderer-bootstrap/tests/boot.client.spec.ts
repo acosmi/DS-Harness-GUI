@@ -1,6 +1,5 @@
 // @vitest-environment jsdom
 import type { Context } from '@deepseek-ai/cordis'
-import { installedConnectionCarrier } from '@deepseek-ai/dsh-client-connection/carrier'
 import { clientBootAssets } from '@deepseek-ai/dsh-client-modules'
 import * as modulesClient from '@deepseek-ai/dsh-client-modules/client'
 import type {
@@ -65,6 +64,7 @@ afterEach(async () => {
   mount = undefined
   delete win.__ModuleLoader__
   delete win.__DSH_BOOT__
+  delete (globalThis as { __DSH_TRANSPORT__?: unknown }).__DSH_TRANSPORT__
   document.body.innerHTML = ''
   vi.restoreAllMocks()
 })
@@ -78,10 +78,10 @@ describe('desktop parser-stage bootstrap', () => {
     expect(fixture.root.textContent).not.toContain('Failed to load plugins')
     expect(fixture.facade.mode).toBe('live')
     expect(fixture.facade.pendingQueue).toEqual([])
-    expect(installedConnectionCarrier()).toBeDefined()
+    expect((globalThis as { __DSH_TRANSPORT__?: unknown }).__DSH_TRANSPORT__).toBeDefined()
     await mount.dispose()
     mount = undefined
-    expect(installedConnectionCarrier()).toBeUndefined()
+    expect((globalThis as { __DSH_TRANSPORT__?: unknown }).__DSH_TRANSPORT__).toBeUndefined()
     expect(win.__DSH_BOOT__).toBeUndefined()
   })
 
@@ -95,7 +95,7 @@ describe('desktop parser-stage bootstrap', () => {
 
     await expect(mount.dispose()).rejects.toThrow('dispose failed')
     mount = undefined
-    expect(installedConnectionCarrier()).toBeUndefined()
+    expect((globalThis as { __DSH_TRANSPORT__?: unknown }).__DSH_TRANSPORT__).toBeUndefined()
     expect(win.__DSH_BOOT__).toBeUndefined()
   })
 })

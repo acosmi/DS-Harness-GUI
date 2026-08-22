@@ -12,9 +12,7 @@ A monotonic projection also cannot return an automation-owned Issue from `In rev
 
 ## Decision
 
-The Issue lifecycle workflow treats review webhooks as commands. `pull_request.review_requested`, including a repeated request, targets `In review`. `pull_request_review.submitted` targets `In progress` only when `review.state` is `changes_requested`; the submitted event remains necessary because a reviewer can request changes without an earlier review-request event. Approved and commented submissions skip their lifecycle job before it creates a Project token, while dismissed reviews are not subscribed.
-
-Both workflows gate their jobs on the repository named by the Issue-management configuration, before checkout or GitHub App token creation. Both commands also validate `event.repository.full_name` before authentication or API access. A well-formed event from any other repository completes as a successful skipped job or command no-op, while a command event with no repository identity fails. This keeps repository-scoped tokens and Project metadata from being applied to a mirror or derived repository.
+The Issue lifecycle workflow treats review webhooks as commands. `pull_request.review_requested`, including a repeated request, targets `In review`. `pull_request_review.submitted` targets `In progress` only when `review.state` is `changes_requested`; the submitted event remains necessary because a reviewer can request changes without an earlier review-request event. Approved and commented submissions run their lifecycle job but no-op (they never reach the Project token step), while dismissed reviews are not subscribed.
 
 Ordinary subscribed pull-request events remain forward-only implementation signals: they can move `Inbox`, `Backlog`, or `Ready` to `In progress`, but they cannot move `In review` backward. Review-request commands can move any earlier active status to `In review`. Changes-requested commands can move earlier active statuses forward to `In progress` and can move `In review` back only when the latest status event for the target Project was written by the configured lifecycle actor. A human or unknown latest actor preserves the current status.
 
@@ -24,7 +22,7 @@ The handler resolves only exact same-repository `Fixes`, `Closes`, or `Resolves`
 
 ## Verification
 
-[Issue-management tests](../../../../.github/issue-management/policy.test.mjs) pin repository ownership through the real command entry path, missing repository rejection, the event-to-command mapping, the repeated-review-request transition after a changes-requested command, the changes-requested regression, terminal protection, and human override preservation. [Workflow tests](../../../../scripts/ci-workflow.spec.ts) pin both repository guards, the subscribed events, the changes-requested job condition, and the separate `ready_for_review` policy trigger.
+[Issue-management tests](../../../../.github/issue-management/policy.test.mjs) pin the event-to-command mapping, the repeated-review-request transition after a changes-requested command, the changes-requested regression, terminal protection, and human override preservation. [Workflow tests](../../../../scripts/ci-workflow.spec.ts) pin the subscribed events, the job-level absence of `if` plus the step-level gate on the token/board steps (so approved/commented reviews pass without minting a token), and the separate `ready_for_review` policy trigger.
 
 ## Alternatives considered
 
@@ -36,12 +34,8 @@ The handler resolves only exact same-repository `Fixes`, `Closes`, or `Resolves`
 
 **Restore `ready_for_review` or add a debounce queue.** Ready status carries neither review handoff, while another queue adds latency and control-plane state without changing either command.
 
-**Retarget Issue management to every event repository.** Pull-request reads could use the event repository dynamically, but Project identity, lifecycle ownership, Issue metadata, and token permissions remain configured for one repository. Running only the readable subset in mirrors would present a partial policy as authoritative; derived repositories therefore receive one explicit no-op.
-
 ## Consequences
 
 A repeated review request moves an automation-managed resolving Issue to `In review` even while GitHub still reports an older blocking review. A later changes-requested review returns it to `In progress`; approval, comments, dismissal, pushes, and reviewer removal leave the most recent command's status unchanged.
 
 The projection remains event-driven and does not repair an event that never runs. Replaying an old workflow run can replay its old command, and ProjectV2 still provides no atomic compare-and-swap between the latest-state read and mutation. Per-pull-request workflow concurrency and the human-ownership guard reduce these races without introducing durable lifecycle state.
-
-Mirrors and derived repositories retain successful skipped workflow checks without checking out the policy, creating the Project token, or querying or mutating the configured repository. They do not receive Issue policy enforcement or Project status projection unless their own configuration names them as the managed repository.

@@ -10,4 +10,4 @@
     refreshJitterMs: 30000
     refreshTimeoutMs: 30000
     projectionPollIntervalMs: 60000
-    productVersion: 0.1.0-dev.2
+    productVersion: 0.1.1-rc.2

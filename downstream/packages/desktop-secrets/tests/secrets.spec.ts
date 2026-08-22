@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { Context } from '@deepseek-ai/cordis'
-import { credentialRef } from '@deepseek-ai/dsh-credentials'
+import { credentialKey, credentialRef } from '@deepseek-ai/dsh-credentials'
 import {
   DesktopCredentialProvider,
   DesktopSdkTokenStore,
@@ -206,6 +206,54 @@ describe('desktop credential and SDK token providers', () => {
       await provider.unset(ref)
       expect(await provider.resolve(ref)).toBeUndefined()
       await expect(provider.set(ref, '')).rejects.toThrow(/empty/)
+    } finally {
+      await context.fiber.dispose()
+    }
+  })
+
+  it('persists credential records through the vault with serialized modify', async () => {
+    const context = new Context()
+    const bridge = new MemoryBridge()
+    context.provide('desktopSecrets', bridge)
+    const provider = new DesktopCredentialProvider(context)
+    const key = credentialKey('llm-pi-ai', 'acosmi')
+    try {
+      expect(await provider.describeRecord(key)).toEqual({ configured: false, writable: true })
+      expect(await provider.listRecords()).toEqual([])
+      const written = await provider.modifyRecord(key, () => Promise.resolve({
+        kind: 'grant',
+        payload: { refresh: 'token' },
+      }))
+      expect(written).toEqual({ kind: 'grant', payload: { refresh: 'token' } })
+      expect(await provider.readRecord(key)).toEqual(written)
+      expect(await provider.describeRecord(key)).toEqual({ configured: true, kind: 'grant', writable: true })
+      expect(await provider.listRecords()).toEqual([{ key, kind: 'grant' }])
+      expect(await provider.modifyRecord(key, () => Promise.resolve(undefined))).toEqual(written)
+
+      const order: string[] = []
+      let release!: () => void
+      const gate = new Promise<void>(resolve => { release = resolve })
+      const first = provider.modifyRecord(key, async (current) => {
+        order.push('first:start')
+        await gate
+        order.push('first:end')
+        return { kind: 'grant', payload: { ...(current as { payload: object }).payload, v: 1 } }
+      })
+      const second = provider.modifyRecord(key, async (current) => {
+        order.push('second')
+        return { kind: 'grant', payload: { ...(current as { payload: object }).payload, v: 2 } }
+      })
+      await vi.waitFor(() => expect(order).toEqual(['first:start']))
+      release()
+      await Promise.all([first, second])
+      expect(order).toEqual(['first:start', 'first:end', 'second'])
+      expect(await provider.readRecord(key)).toEqual({ kind: 'grant', payload: { refresh: 'token', v: 2 } })
+
+      await provider.deleteRecord(key)
+      expect(await provider.readRecord(key)).toBeUndefined()
+      expect(bridge.values.has('credential-records:v1')).toBe(false)
+      bridge.values.set('credential-records:v1', '{')
+      await expect(provider.readRecord(key)).rejects.toThrow(/not JSON/)
     } finally {
       await context.fiber.dispose()
     }

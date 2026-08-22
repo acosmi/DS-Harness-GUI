@@ -7,7 +7,6 @@
   },
   "files": [
     "src/api-path.ts",
-    "src/carrier.ts",
     "src/api-request-trust.ts",
     "src/http-bridge.ts",
     "src/index.ts",

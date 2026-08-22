@@ -40,6 +40,11 @@ describe('desktop renderer asset manifest generation', () => {
     expect(DESKTOP_CLIENT_ALLOWLIST).toContain('@deepseek-ai/dsh-client-ui-renderer')
   })
 
+  it('includes attachment presentation and composer @ references from the web-app roster', () => {
+    expect(DESKTOP_CLIENT_ALLOWLIST).toContain('@deepseek-ai/dsh-client-ui-attachment')
+    expect(DESKTOP_CLIENT_ALLOWLIST).toContain('@deepseek-ai/dsh-client-ui-reference')
+  })
+
   it('keeps UI primitives in the shell-static baseline instead of the dynamic graph', () => {
     expect(PLATFORM_MODULES).toContain('@deepseek-ai/dsh-client-ui-primitives')
     expect(DESKTOP_CLIENT_ALLOWLIST).not.toContain('@deepseek-ai/dsh-client-ui-primitives')

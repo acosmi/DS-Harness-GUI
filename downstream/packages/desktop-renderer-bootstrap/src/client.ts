@@ -1,8 +1,7 @@
 /** Sandboxed renderer bootstrap for the immutable desktop plugin graph. */
 
-import { createElectronConnectionCarrier } from '@acosmi/dsh-desktop-carrier-electron/client'
+import { installElectronTransport } from '@acosmi/dsh-desktop-carrier-electron/client'
 import { isDesktopRendererUrl } from '@acosmi/dsh-desktop-carrier-electron/protocol'
-import { installConnectionCarrier } from '@deepseek-ai/dsh-client-connection/carrier'
 import { AppWebEntry } from '@deepseek-ai/dsh-client-web'
 
 /** Mounted desktop renderer and its deterministic teardown. */
@@ -24,12 +23,12 @@ export async function mountDesktopRenderer(
   const target = globalThis as typeof globalThis & { __DSH_BOOT__?: unknown }
   if (target.__DSH_BOOT__ !== undefined) throw new Error('desktop renderer boot graph is already installed')
   target.__DSH_BOOT__ = graph
-  const uninstallCarrier = installConnectionCarrier(createElectronConnectionCarrier())
+  const uninstallTransport = installElectronTransport()
   const entry = new AppWebEntry(root)
   try {
     await entry.run()
   } catch (error) {
-    uninstallCarrier()
+    uninstallTransport()
     delete target.__DSH_BOOT__
     throw error
   }
@@ -38,7 +37,7 @@ export async function mountDesktopRenderer(
       try {
         await entry.dispose()
       } finally {
-        uninstallCarrier()
+        uninstallTransport()
         delete target.__DSH_BOOT__
       }
     },

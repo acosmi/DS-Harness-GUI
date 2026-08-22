@@ -45,6 +45,11 @@ import {
 } from './renderer-ipc.ts'
 import { createDesktopUtilityEnvironment } from './environment.ts'
 import { resolveDesktopSecretPersistence } from './secret-persistence.ts'
+import {
+  canFocusExistingWindow,
+  desktopActivateAction,
+  shouldPromptRendererRestart,
+} from './lifecycle.ts'
 
 const CSP = [
   "default-src 'none'",
@@ -62,9 +67,9 @@ const CSP = [
 
 let schemeRegistered = false
 
-/** Build-time/runtime update roots. Absence keeps updates disabled. */
+/** Build-time/runtime update roots. Absence keeps updates disabled. Only an explicit check exists until a signed feed implements download and apply. */
 export interface DesktopUpdateOptions {
-  readonly mode: 'manual' | 'automatic'
+  readonly mode: 'manual'
   readonly indexUrl: string
   readonly publicKeys: Readonly<Record<string, string>>
 }
@@ -131,20 +136,27 @@ export async function runDesktopMain(options: DesktopMainOptions): Promise<void>
   let vaultPersistence: DesktopSecretPersistence | undefined
   let stopping = false
   const partition = `persist:dsh-gui-${options.channel}`
+  const windowLive = (): boolean => window !== undefined && !window.isDestroyed()
+  const beginApplicationTeardown = (): void => {
+    stopping = true
+    removeIpcHandlers()
+  }
   const openWindow = (): void => {
-    if (broker === undefined || vaultPersistence === undefined) return
-    window = createDesktopWindow(options, broker, partition)
+    if (stopping || broker === undefined || vaultPersistence === undefined) return
+    window = createDesktopWindow(options, broker, partition, () => stopping)
     installIpcHandlers(window, broker, options, vaultPersistence)
   }
   app.on('second-instance', () => {
-    if (window === undefined || window.isDestroyed()) return
+    if (!canFocusExistingWindow(stopping, windowLive()) || window === undefined) return
     if (window.isMinimized()) window.restore()
     window.show()
     window.focus()
   })
   app.on('activate', () => {
-    if (window !== undefined && !window.isDestroyed()) {
-      window.show()
+    const action = desktopActivateAction(stopping, windowLive())
+    if (action === 'ignore') return
+    if (action === 'show') {
+      window?.show()
       return
     }
     openWindow()
@@ -158,8 +170,7 @@ export async function runDesktopMain(options: DesktopMainOptions): Promise<void>
       return
     }
     event.preventDefault()
-    stopping = true
-    removeIpcHandlers()
+    beginApplicationTeardown()
     void (broker?.shutdown() ?? Promise.resolve())
       .catch((_shutdownFailure) => {
         console.error('[dsh-gui] shutdown failed; details omitted')
@@ -181,7 +192,7 @@ export async function runDesktopMain(options: DesktopMainOptions): Promise<void>
     await installResourceProtocol(appSession, options.rendererRoot, options.rendererAssetManifest)
     hardenSession(appSession)
     const child = utilityProcess.fork(options.utilityPath, [], {
-      serviceName: 'DSH-GUI Harness Host',
+      serviceName: `${identity.productName} Harness Host`,
       env: createDesktopUtilityEnvironment({
         inherited: process.env,
         platform: process.platform,
@@ -193,13 +204,13 @@ export async function runDesktopMain(options: DesktopMainOptions): Promise<void>
       }),
       execArgv: [],
     })
-    broker = new DesktopUtilityBroker(child, vault, () => window)
+    broker = new DesktopUtilityBroker(child, vault, () => window, beginApplicationTeardown)
     await broker.ready()
     openWindow()
   } catch (_startupFailure) {
     console.error('[dsh-gui] startup failed; details omitted')
-    dialog.showErrorBox('DSH-GUI', 'The desktop application could not start its local Harness Host.')
-    stopping = true
+    dialog.showErrorBox(identity.productName, 'The desktop application could not start its local Harness Host.')
+    beginApplicationTeardown()
     await broker?.shutdown().catch(() => undefined)
     app.exit(1)
   }
@@ -208,15 +219,17 @@ export async function runDesktopMain(options: DesktopMainOptions): Promise<void>
 function createDesktopWindow(
   options: DesktopMainOptions,
   broker: DesktopUtilityBroker,
-  partition = `persist:dsh-gui-${options.channel}`,
+  partition: string,
+  stopping: () => boolean,
 ): BrowserWindow {
+  const productName = options.identity.productName
   const window = new BrowserWindow({
     width: 1440,
     height: 920,
     minWidth: 940,
     minHeight: 640,
     show: false,
-    title: 'DSH-GUI',
+    title: productName,
     backgroundColor: '#101114',
     webPreferences: {
       preload: options.preloadPath,
@@ -256,12 +269,12 @@ function createDesktopWindow(
   })
   window.webContents.on('render-process-gone', (_event, details) => {
     closeRendererStreams()
-    if (details.reason === 'clean-exit') return
+    if (!shouldPromptRendererRestart(stopping(), details.reason)) return
     void dialog.showMessageBox(window, {
       type: 'error',
-      title: 'DSH-GUI',
+      title: productName,
       message: 'The interface process stopped unexpectedly.',
-      detail: 'Restart DSH-GUI to reconnect to the local Harness Host.',
+      detail: `Restart ${productName} to reconnect to the local Harness Host.`,
     })
   })
   window.on('closed', closeRendererStreams)

@@ -42,8 +42,15 @@ export class ModelDirectory {
     current: null, routable: null, groups: [], failures: [], blockedProviders: {}, status: 'idle', error: null,
   })
 
-  /** Latest operation wins; an older response never overwrites a newer one. */
-  private generation = 0
+  /**
+   * Directory loads and selections keep independent epochs so a catalog
+   * refresh cannot discard an in-flight `selectModel`, while a newer load
+   * still replaces an older load.
+   */
+  private loadGeneration = 0
+  private selectEpoch = 0
+  private selectTail: Promise<void> = Promise.resolve()
+  private selectsInFlight = 0
   private disposed = false
   private accessErrorProvider: string | undefined
 
@@ -69,14 +76,19 @@ export class ModelDirectory {
    */
   async load(): Promise<SessionModels> {
     this.assertAvailable()
+    if (this.selectsInFlight > 0) {
+      await this.selectTail.catch(() => undefined)
+      this.assertAvailable()
+    }
     this.accessErrorProvider = undefined
-    const generation = ++this.generation
+    const generation = ++this.loadGeneration
+    const epoch = this.selectEpoch
     this.store.update((s) => { s.status = 'loading'; s.error = null })
     let response: Awaited<ReturnType<typeof this.sessions.models>>
     try {
       response = await this.sessions.models({ sessionId: this.sessionId })
     } catch (_modelDirectoryTransportFailure) {
-      if (!this.disposed && generation === this.generation) {
+      if (!this.disposed && generation === this.loadGeneration && epoch === this.selectEpoch) {
         this.store.update((state) => {
           state.status = 'error'
           state.error = 'The model catalog could not be loaded.'
@@ -85,7 +97,7 @@ export class ModelDirectory {
       throw new Error('session.models transport failed')
     }
     const { result } = response
-    if (this.disposed || generation !== this.generation) {
+    if (this.disposed || generation !== this.loadGeneration || epoch !== this.selectEpoch) {
       if (!result.ok) throw new Error(`${result.error.code}: ${result.error.message}`)
       return result.value
     }
@@ -116,7 +128,8 @@ export class ModelDirectory {
     const blocked = providerBlock(this.store.getSnapshot().blockedProviders, selection.provider)
     if (blocked !== undefined) {
       this.accessErrorProvider = selection.provider
-      ++this.generation
+      this.selectEpoch++
+      this.loadGeneration++
       this.store.update((state) => {
         state.status = 'error'
         state.error = blocked
@@ -124,44 +137,55 @@ export class ModelDirectory {
       throw new Error(blocked)
     }
     this.accessErrorProvider = undefined
-    const generation = ++this.generation
+    const epoch = ++this.selectEpoch
+    this.loadGeneration++
+    const previousSelect = this.selectTail
+    const settled = Promise.withResolvers<void>()
+    this.selectTail = settled.promise
+    this.selectsInFlight++
     this.store.update((s) => { s.status = 'selecting'; s.error = null })
-    let response: Awaited<ReturnType<typeof this.sessions.selectModel>>
     try {
-      response = await this.sessions.selectModel({
-        sessionId: this.sessionId,
-        provider: selection.provider,
-        model: selection.model,
-        ...selection.reasoningEffort === undefined
-          ? {}
-          : { reasoningEffort: selection.reasoningEffort },
-      })
-    } catch (_modelSelectionTransportFailure) {
-      if (!this.disposed && generation === this.generation) {
-        this.store.update((state) => {
-          state.status = 'error'
-          state.error = 'The model selection could not be saved.'
+      await previousSelect.catch(() => undefined)
+      let response: Awaited<ReturnType<typeof this.sessions.selectModel>>
+      try {
+        response = await this.sessions.selectModel({
+          sessionId: this.sessionId,
+          provider: selection.provider,
+          model: selection.model,
+          ...selection.reasoningEffort === undefined
+            ? {}
+            : { reasoningEffort: selection.reasoningEffort },
         })
+      } catch (_modelSelectionTransportFailure) {
+        if (!this.disposed && epoch === this.selectEpoch) {
+          this.store.update((state) => {
+            state.status = 'error'
+            state.error = 'The model selection could not be saved.'
+          })
+        }
+        throw new Error('session.selectModel transport failed')
       }
-      throw new Error('session.selectModel transport failed')
+      const { result } = response
+      if (this.disposed || epoch !== this.selectEpoch) {
+        if (!result.ok) throw new Error(`${result.error.code}: ${result.error.message}`)
+        return
+      }
+      if (!result.ok) {
+        this.store.update((s) => { s.status = 'error'; s.error = `${result.error.code}: ${result.error.message}` })
+        throw new Error(`session.selectModel failed: ${result.error.code}: ${result.error.message}`)
+      }
+      // The Host validated the route before accepting it, so a selection that
+      // landed is by construction one it can serve.
+      this.store.update((s) => {
+        s.current = result.value.selected
+        s.routable = true
+        s.status = 'ready'
+        s.error = null
+      })
+    } finally {
+      this.selectsInFlight--
+      settled.resolve()
     }
-    const { result } = response
-    if (this.disposed || generation !== this.generation) {
-      if (!result.ok) throw new Error(`${result.error.code}: ${result.error.message}`)
-      return
-    }
-    if (!result.ok) {
-      this.store.update((s) => { s.status = 'error'; s.error = `${result.error.code}: ${result.error.message}` })
-      throw new Error(`session.selectModel failed: ${result.error.code}: ${result.error.message}`)
-    }
-    // The Host validated the route before accepting it, so a selection that
-    // landed is by construction one it can serve.
-    this.store.update((s) => {
-      s.current = result.value.selected
-      s.routable = true
-      s.status = 'ready'
-      s.error = null
-    })
   }
 
   /**
@@ -172,7 +196,8 @@ export class ModelDirectory {
   resetConnected(): void {
     if (this.disposed) return
     this.accessErrorProvider = undefined
-    ++this.generation
+    this.selectEpoch++
+    this.loadGeneration++
     this.store.update((s) => {
       s.current = null
       s.routable = null

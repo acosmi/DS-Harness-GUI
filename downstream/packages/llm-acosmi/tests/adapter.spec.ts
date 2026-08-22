@@ -101,6 +101,27 @@ describe('Acosmi account model catalog', () => {
     }])
   })
 
+  it('serves directory listing from the last confirmed catalog', async () => {
+    const models = vi.fn(async () => ({ status: 'ok' as const, models: [managedModel()] }))
+    const adapter = new AcosmiAdapter({
+      models,
+      sdkSession: () => ({
+        signal: new AbortController().signal,
+        client: { isAuthorized: () => true },
+      }),
+    } as unknown as AcosmiAccountService, 8192, 120_000)
+    adapter.replaceCatalog([managedModel()])
+
+    await expect(adapter.listModels('acosmi')).resolves.toEqual([{
+      provider: 'acosmi',
+      id: 'account-model',
+      name: 'Acosmi · DeepSeek-v4-Flash',
+      description: 'deepseek · deepseek-v4-flash',
+      inputModalities: ['text'],
+    }])
+    expect(models).not.toHaveBeenCalled()
+  })
+
   it('keeps the Acosmi source label on resolved session selections', async () => {
     const adapter = new AcosmiAdapter(account([managedModel({
       maxTokens: 1_000_000,
