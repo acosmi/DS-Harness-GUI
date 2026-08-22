@@ -32,6 +32,7 @@ describe('model directory transport failures', () => {
       models: async () => {
         await modelsGate.promise
         return {
+          rpcId: 'models' as never,
           result: {
             ok: true as const,
             value: { current, routable: true, groups: [], failures: [] },
@@ -41,15 +42,15 @@ describe('model directory transport failures', () => {
       selectModel: async (request) => {
         await selectGate.promise
         current = { provider: request.provider, model: request.model }
-        return { result: { ok: true as const, value: { selected: current } } }
+        return { rpcId: 'select' as never, result: { ok: true as const, value: { selected: current } } }
       },
     }, 'session' as SessionId, () => true)
 
     const selecting = directory.select({ provider: 'acosmi', model: 'account-model' })
     const loading = directory.load()
-    modelsGate.resolve()
+    modelsGate.resolve(undefined)
     await Promise.resolve()
-    selectGate.resolve()
+    selectGate.resolve(undefined)
     await selecting
     await loading
 

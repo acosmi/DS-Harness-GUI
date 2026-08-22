@@ -166,8 +166,8 @@ function sessionModelsOf(state: ModelDirectoryState): SessionModels {
   return {
     current: state.current,
     routable: state.routable,
-    groups: state.groups,
-    failures: state.failures,
+    groups: [...state.groups],
+    failures: [...state.failures],
   }
 }
 
