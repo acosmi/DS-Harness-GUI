@@ -86,4 +86,34 @@ describe('Acosmi account settings lifecycle', () => {
     await vi.advanceTimersByTimeAsync(120_000)
     expect(load).not.toHaveBeenCalled()
   })
+
+  it('keeps retry visible and disabled while a projection read is in flight', () => {
+    Object.defineProperty(window, 'dshDesktop', {
+      configurable: true,
+      value: { productInfo: async () => ({ ok: false }) },
+    })
+    const load = vi.fn(async () => undefined)
+    const controller = {
+      resume: vi.fn(async () => undefined),
+      load,
+      act: vi.fn(async () => undefined),
+    } as unknown as AcosmiAccountStore
+    const state: AcosmiAccountUiState = {
+      phase: 'loading',
+      account: null,
+      busy: null,
+      error: 'Acosmi account service is temporarily unavailable.',
+    }
+    const useSnapshot = (<T,>(selector: (snapshot: AcosmiAccountUiState) => T): T => selector(state))
+    const view = render(<AccountSection
+      controller={controller}
+      useSnapshot={useSnapshot as never}
+      t={key => key}
+    />)
+
+    expect(view.container.querySelector('[aria-busy="true"]')).not.toBeNull()
+    expect(view.getByText('loading')).toBeTruthy()
+    const retry = view.getByRole('button', { name: 'retry' })
+    expect(retry).toHaveProperty('disabled', true)
+  })
 })

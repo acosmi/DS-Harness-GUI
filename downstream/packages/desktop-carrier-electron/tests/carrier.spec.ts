@@ -78,6 +78,38 @@ describe('renderer Electron carrier', () => {
     })).rejects.toThrow(/rejected target/)
   })
 
+  it('carries Typert /api namespace methods and rejects API Proxy unary paths', async () => {
+    const requestSpy = vi.fn(async (request: DesktopUnaryRequest) => {
+      const message = JSON.parse(new TextDecoder().decode(request.body)) as ClientRequest
+      return Response.json({
+        type: 'server-response',
+        rpcId: message.rpcId,
+        result: { ok: true, value: { accepted: message.payload } },
+      })
+    })
+    const rpc = await mountedDesktopRpc(bridge(requestSpy))
+    await expect(rpc.call('/api', 'pluginInventory/list', { value: 1 }))
+      .resolves.toEqual({ ok: true, value: { accepted: { value: 1 } } })
+    await expect(rpc.call('/api', 'acosmiAccount/describe', {}))
+      .resolves.toEqual({ ok: true, value: { accepted: {} } })
+    expect(requestSpy).toHaveBeenCalledWith(expect.objectContaining({
+      url: 'app://dsh-gui/api/pluginInventory/list',
+      method: 'POST',
+    }))
+    expect(requestSpy).toHaveBeenCalledWith(expect.objectContaining({
+      url: 'app://dsh-gui/api/acosmiAccount/describe',
+      method: 'POST',
+    }))
+    await expect(desktopRpcFetch(new URL('app://dsh-gui/api/host.describe'), {
+      method: 'POST',
+      body: '{}',
+    })).rejects.toThrow(/rejected target/)
+    await expect(desktopRpcFetch(new URL('app://dsh-gui/api/events.mux'), {
+      method: 'POST',
+      body: '{}',
+    })).rejects.toThrow(/rejected target/)
+  })
+
   it('suppresses secret-bearing credential and model-discovery envelopes without changing transport bytes', async () => {
     const received: ClientRequest[] = []
     vi.stubGlobal('window', { dshDesktop: bridge(async request => {
@@ -226,6 +258,48 @@ describe('utility-process Host carrier', () => {
       .resolves.toMatchObject({ result: { ok: true, value: 'handled' } })
     await expect(dispatch('/rpc~v1//demo.call').then(response => response.status)).resolves.toBe(404)
     await expect(dispatch('/rpc~v1/demo.call/').then(response => response.status)).resolves.toBe(404)
+    await remove()
+    await context.fiber.dispose()
+  })
+
+  it('claims Typert /api namespace methods and falls back for API Proxy methods', async () => {
+    const context = new Context()
+    const connection = new DesktopHostConnection(context)
+    const remove = connection.rpc.intercept(
+      '/api',
+      endpoint => endpoint.includes('/'),
+      async (endpoint, payload) => ({ ok: true, value: { endpoint, payload } }),
+      { authority: 'trusted-host' },
+    )
+    const inventory: ClientRequest = {
+      type: 'client-request',
+      rpcId: RpcId('01234567-89ab-cdef'),
+      method: 'pluginInventory/list',
+      payload: { test: true },
+    }
+    const claimed = await connection.fetch(new Request('app://dsh-gui/api/pluginInventory/list', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(inventory),
+    }), async () => new Response('fallback', { status: 299 }))
+    expect(await claimed.json()).toEqual({
+      type: 'server-response',
+      rpcId: '01234567-89ab-cdef',
+      result: { ok: true, value: { endpoint: 'pluginInventory/list', payload: { test: true } } },
+    })
+
+    const describe: ClientRequest = {
+      type: 'client-request',
+      rpcId: RpcId('01234567-89ab-cdef'),
+      method: 'host.describe',
+      payload: null,
+    }
+    const fallback = await connection.fetch(new Request('app://dsh-gui/api/host.describe', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(describe),
+    }), async () => new Response('fallback', { status: 299 }))
+    expect(fallback.status).toBe(299)
     await remove()
     await context.fiber.dispose()
   })
