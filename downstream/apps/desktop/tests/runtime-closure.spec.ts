@@ -12,7 +12,7 @@ import {
   writeFileSync,
 } from 'node:fs'
 import { tmpdir } from 'node:os'
-import { dirname, join } from 'node:path'
+import { dirname, join, sep } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
 
 interface RuntimeClosureModule {
@@ -183,7 +183,9 @@ describe('desktop package runtime closure', () => {
     ]
     const asar = {
       listPackage: () => entries,
-      extractFile: (_archivePath: string, filename: string) => Buffer.from(JSON.stringify(manifests.get(filename))),
+      extractFile: (_archivePath: string, filename: string) => {
+        return Buffer.from(JSON.stringify(manifests.get(filename.replaceAll('\\', '/'))))
+      },
     }
 
     expect(() => closure.assertAsarRuntimeClosure(asar, 'fixture.asar', 'darwin-arm64'))
@@ -195,5 +197,39 @@ describe('desktop package runtime closure', () => {
     entries.push('/node_modules/node-pty/prebuilds/win32-x64/pty.node')
     expect(() => closure.assertAsarRuntimeClosure(asar, 'fixture.asar', 'darwin-arm64'))
       .toThrow(/non-target node-pty prebuild/)
+  })
+
+  it('audits Windows asar listings whose paths use backslashes', () => {
+    const manifests = new Map<string, Record<string, unknown>>([
+      ['package.json', { dependencies: { first: '1.0.0' } }],
+      ['node_modules/first/package.json', { dependencies: { second: '1.0.0' } }],
+      ['node_modules/second/package.json', {}],
+    ])
+    const posixEntries = [
+      '/dist/main.js',
+      '/dist/preload.cjs',
+      '/dist/renderer/assets.manifest.json',
+      '/dist/renderer/index.html',
+      '/dist/utility.js',
+      '/package.json',
+      '/node_modules/first/package.json',
+      '/node_modules/second/package.json',
+      '/node_modules/@img/sharp-win32-x64/lib/sharp.node',
+      '/node_modules/@koromix/koffi-win32-x64/win32_x64/koffi.node',
+      '/node_modules/node-addon-require-builtin-win32-x64-msvc/prebuilt/addon.node',
+      '/node_modules/node-pty/prebuilds/win32-x64/pty.node',
+    ]
+    const extracted: string[] = []
+    const asar = {
+      listPackage: () => posixEntries.map(entry => entry.replaceAll('/', '\\')),
+      extractFile: (_archivePath: string, filename: string) => {
+        extracted.push(filename)
+        return Buffer.from(JSON.stringify(manifests.get(filename.replaceAll('\\', '/'))))
+      },
+    }
+
+    expect(closure.assertAsarRuntimeClosure(asar, 'fixture.asar', 'win32-x64').packages).toBe(3)
+    expect(extracted).toContain('package.json')
+    expect(extracted).toContain(['node_modules', 'first', 'package.json'].join(sep))
   })
 })
